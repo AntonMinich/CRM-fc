@@ -1,21 +1,77 @@
+/* Уведомление об успешном создании клиента (раздел 6 ТЗ на обновление). */
+
 .toast {
   position: fixed;
   right: var(--toast-offset);
   bottom: var(--toast-offset);
-  z-index: 10;
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+  max-width: calc(100vw - 2 * var(--toast-offset));
+  /* Пустой контейнер не перехватывает нажатия по интерфейсу. */
   pointer-events: none;
 }
 
 .toast__message {
-  margin: 0;
-  padding: 16px 22px;
-  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: var(--toast-width);
+  max-width: 100%;
+  padding: 14px 12px 14px 16px;
+  border: 1px solid var(--toast-border);
+  border-left: 4px solid var(--toast-accent);
   border-radius: 12px;
-  background-color: var(--surface);
-  color: var(--text-primary);
-  font-size: 13px;
-  box-shadow: 0 8px 30px rgb(16 25 84 / 18%);
+  /* Непрозрачная подложка: отпечаток не просвечивает через текст. */
+  background-color: var(--toast-bg);
+  color: var(--toast-text);
+  box-shadow: var(--toast-shadow);
+  pointer-events: auto;
   animation: toast-in 0.15s ease-out;
+}
+
+.toast__icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background-color: var(--toast-icon-bg);
+  color: var(--toast-accent);
+}
+
+.toast__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.toast__close {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--toast-text);
+  opacity: 0.78;
+  transition: background-color 0.15s ease, opacity 0.15s ease;
+}
+
+.toast__close:hover {
+  background-color: var(--toast-close-hover);
+  opacity: 1;
+}
+
+.toast__close:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
 }
 
 @keyframes toast-in {
@@ -33,7 +89,13 @@
 @media (max-width: 650px) {
   .toast {
     right: 16px;
-    bottom: 16px;
     left: 16px;
+    bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+    max-width: none;
+  }
+
+  .toast__message {
+    width: 100%;
+    max-width: calc(100vw - 32px);
   }
 }

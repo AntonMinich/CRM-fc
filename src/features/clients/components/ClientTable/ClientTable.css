@@ -1,35 +1,109 @@
+/* Мягкое оформление списка клиентов (раздел 5 ТЗ на обновление оформления). */
+
 .client-table-wrap {
   flex: 1 1 auto;
   min-height: 0;
   margin: 0 var(--crm-toolbar-padding-x) 0;
-  border: 1px solid var(--border);
+  /* Полупрозрачная поверхность: отпечаток слегка виден, текст остаётся непрозрачным. */
+  background-color: var(--clients-surface);
+  border: 1px solid var(--clients-surface-border);
   border-radius: 12px;
-  background-color: var(--surface);
   overflow: auto;
 }
 
 .client-table {
   width: 100%;
   min-width: var(--table-min-width);
-  border-collapse: collapse;
+  table-layout: fixed;
+  /* Раздельные границы нужны для скругления подсветки строки. */
+  border-collapse: separate;
+  border-spacing: 0;
 }
 
-.client-table th,
-.client-table td {
-  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
-  border-bottom: 1px solid var(--border);
-  text-align: left;
-  font-size: var(--table-font-size);
+.client-table__col--client {
+  width: 30%;
 }
 
-.client-table th {
-  color: var(--text-muted);
+.client-table__col--phone {
+  width: 21%;
+}
+
+.client-table__col--email {
+  width: 22%;
+}
+
+.client-table__col--responsible {
+  width: 27%;
+}
+
+.client-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  padding: var(--table-head-padding-y) var(--table-cell-padding-x);
+  /* Двойной слой той же заливки: шапка плотнее тела и не смешивается со строками. */
+  background-color: var(--clients-head-surface);
+  background-image: linear-gradient(var(--clients-head-surface), var(--clients-head-surface));
+  color: var(--clients-text-secondary);
   font-size: var(--table-head-font-size);
   font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
 }
 
-.client-table tbody tr:last-child td {
-  border-bottom: 0;
+.client-table tbody td {
+  position: relative;
+  padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
+  color: var(--clients-text-secondary);
+  font-size: var(--table-font-size);
+  line-height: 1.5;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+  transition: background-color 0.15s ease;
+}
+
+/* ФИО — главное значение строки; внешние углы строки скруглены. */
+.client-table tbody td:first-child {
+  border-top-left-radius: var(--table-row-radius);
+  border-bottom-left-radius: var(--table-row-radius);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.client-table tbody td:last-child {
+  border-top-right-radius: var(--table-row-radius);
+  border-bottom-right-radius: var(--table-row-radius);
+}
+
+/* Мягкая подсветка всей строки без изменения геометрии и сдвига текста. */
+.client-table tbody tr:hover td {
+  background-color: var(--clients-row-hover);
+}
+
+/* Тонкий разделитель между строками с отступами от краёв контейнера. */
+.client-table tbody td::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 1px;
+  background-color: var(--clients-row-line);
+}
+
+.client-table tbody td:first-child::after {
+  left: var(--table-line-inset);
+}
+
+.client-table tbody td:last-child::after {
+  right: var(--table-line-inset);
+}
+
+/* После последней строки внутренняя линия не рисуется. */
+.client-table tbody tr:last-child td::after {
+  content: none;
+  background-color: transparent;
 }
 
 .client-table-state {

@@ -79,6 +79,45 @@ function check(condition, message) {
   }
 }
 
+/** Разбирает `rgb(...)`, `rgba(...)` и `#hex` в компоненты для сравнения цветов. */
+function rgba(value) {
+  const text = String(value ?? '').trim();
+  const hex = /^#([0-9a-f]{3,8})$/i.exec(text);
+  if (hex) {
+    let digits = hex[1];
+    if (digits.length === 3 || digits.length === 4) {
+      digits = digits
+        .split('')
+        .map((char) => char + char)
+        .join('');
+    }
+    return {
+      r: Number.parseInt(digits.slice(0, 2), 16),
+      g: Number.parseInt(digits.slice(2, 4), 16),
+      b: Number.parseInt(digits.slice(4, 6), 16),
+      a: digits.length === 8 ? Number.parseInt(digits.slice(6, 8), 16) / 255 : 1,
+    };
+  }
+  const match = /rgba?\(([^)]+)\)/.exec(text);
+  if (!match) return null;
+  const parts = match[1].split(',').map((part) => Number.parseFloat(part.trim()));
+  if (parts.length < 3 || parts.some((part) => Number.isNaN(part))) return null;
+  return { r: parts[0], g: parts[1], b: parts[2], a: parts.length > 3 ? parts[3] : 1 };
+}
+
+/** Сравнивает цвета с допуском по альфе. */
+function sameColor(value, expected) {
+  const actual = rgba(value);
+  const target = rgba(expected);
+  if (!actual || !target) return false;
+  return (
+    actual.r === target.r &&
+    actual.g === target.g &&
+    actual.b === target.b &&
+    Math.abs(actual.a - target.a) < 0.02
+  );
+}
+
 async function collect(page) {
   return page.evaluate(() => {
     const root = document.documentElement;
@@ -204,6 +243,89 @@ async function collect(page) {
       clientStateText: trim(document.querySelector('.client-table-state')?.textContent),
       clientToolbarPresent: document.querySelector('.client-toolbar') !== null,
       clientModalPresent: document.querySelector('dialog.client-modal') !== null,
+      // Мягкое оформление таблицы клиентов.
+      clientTableStyles: (() => {
+        const wrap = document.querySelector('.client-table-wrap');
+        const table = document.querySelector('.client-table');
+        const head = document.querySelector('.client-table thead th');
+        const rows = Array.from(document.querySelectorAll('.client-table tbody tr'));
+        const firstRow = rows[0] ?? null;
+        const firstCell = firstRow?.querySelector('td') ?? null;
+        const lastRow = rows[rows.length - 1] ?? null;
+        const lastCell = lastRow?.lastElementChild ?? null;
+        if (!wrap || !table || !head || !firstCell) return null;
+        const wrapStyle = getComputedStyle(wrap);
+        const tableStyle = getComputedStyle(table);
+        const headStyle = getComputedStyle(head);
+        const cellStyle = getComputedStyle(firstCell);
+        const dividerStyle = getComputedStyle(firstCell, '::after');
+        const lastDividerStyle = lastCell ? getComputedStyle(lastCell, '::after') : null;
+        return {
+          wrapBackground: wrapStyle.backgroundColor,
+          wrapBorderColor: wrapStyle.borderTopColor,
+          wrapRadius: wrapStyle.borderTopLeftRadius,
+          borderCollapse: tableStyle.borderCollapse,
+          tableLayout: tableStyle.tableLayout,
+          minWidth: tableStyle.minWidth,
+          colCount: table.querySelectorAll('colgroup col').length,
+          headBackground: headStyle.backgroundColor,
+          headPosition: headStyle.position,
+          headFontSize: headStyle.fontSize,
+          headFontWeight: headStyle.fontWeight,
+          cellBorderLeftWidth: cellStyle.borderLeftWidth,
+          cellBorderRightWidth: cellStyle.borderRightWidth,
+          cellBorderTopWidth: cellStyle.borderTopWidth,
+          cellPaddingTop: cellStyle.paddingTop,
+          cellPaddingLeft: cellStyle.paddingLeft,
+          cellFontSize: cellStyle.fontSize,
+          cellLineHeight: cellStyle.lineHeight,
+          cellBackground: cellStyle.backgroundColor,
+          firstNameColor: cellStyle.color,
+          firstNameWeight: cellStyle.fontWeight,
+          otherCellColor: firstRow.children[1]
+            ? getComputedStyle(firstRow.children[1]).color
+            : null,
+          dividerContent: dividerStyle.content,
+          dividerColor: dividerStyle.backgroundColor,
+          dividerHeight: dividerStyle.height,
+          dividerLeft: dividerStyle.left,
+          lastDividerColor: lastDividerStyle ? lastDividerStyle.backgroundColor : null,
+          rowRadius: cellStyle.borderTopLeftRadius,
+          rowHeights: rows.map((row) => Math.round(row.getBoundingClientRect().height)),
+          rowBackgrounds: rows.map((row) => {
+            const cell = row.querySelector('td');
+            return cell ? getComputedStyle(cell).backgroundColor : null;
+          }),
+        };
+      })(),
+      // Уведомление об успешном создании клиента.
+      toastStyles: (() => {
+        const message = document.querySelector('.toast__message');
+        if (!message) return null;
+        const style = getComputedStyle(message);
+        const rect = message.getBoundingClientRect();
+        const icon = message.querySelector('.toast__icon');
+        const text = message.querySelector('.toast__text');
+        const textStyle = text ? getComputedStyle(text) : null;
+        return {
+          text: (text?.textContent ?? '').trim(),
+          background: style.backgroundColor,
+          borderTopColor: style.borderTopColor,
+          borderTopWidth: style.borderTopWidth,
+          borderLeftColor: style.borderLeftColor,
+          borderLeftWidth: style.borderLeftWidth,
+          radius: style.borderTopLeftRadius,
+          shadow: style.boxShadow,
+          width: Math.round(rect.width),
+          offsetRight: Math.round(window.innerWidth - rect.right),
+          offsetBottom: Math.round(window.innerHeight - rect.bottom),
+          fontSize: textStyle ? textStyle.fontSize : null,
+          fontWeight: textStyle ? textStyle.fontWeight : null,
+          hasIcon: Boolean(message.querySelector('.toast__icon svg')),
+          iconBackground: icon ? getComputedStyle(icon).backgroundColor : null,
+          closeLabel: message.querySelector('.toast__close')?.getAttribute('aria-label') ?? null,
+        };
+      })(),
       crmViewText: trim(document.querySelector('.crm-view')?.textContent),
     };
   });
@@ -550,6 +672,139 @@ async function checkBehaviour(browser, engine) {
   await context.close();
 }
 
+/** Проверяет оформление уведомления об успешном создании (раздел 6 ТЗ). */
+function checkToastStyles(styles, theme, engine) {
+  const label = `[${engine} клиенты ${theme}]`;
+  if (!styles) {
+    check(false, `${label} уведомление об успешном создании не показано`);
+    return;
+  }
+  const palette =
+    theme === 'dark'
+      ? { background: '#1b3040', border: '#47b99a', accent: '#71e6bd', icon: '#234c48' }
+      : { background: '#ffffff', border: '#8cc9b8', accent: '#087f65', icon: '#dff5ec' };
+
+  check(styles.text === CLIENT_CREATED_TEXT, `${label} текст уведомления: "${styles.text}"`);
+  check(
+    sameColor(styles.background, palette.background),
+    `${label} подложка уведомления: ${styles.background}`,
+  );
+  check(
+    rgba(styles.background)?.a === 1,
+    `${label} подложка уведомления не непрозрачная: ${styles.background}`,
+  );
+  check(
+    sameColor(styles.borderTopColor, palette.border) && styles.borderTopWidth === '1px',
+    `${label} рамка уведомления: ${styles.borderTopColor} ${styles.borderTopWidth}`,
+  );
+  check(
+    sameColor(styles.borderLeftColor, palette.accent) && styles.borderLeftWidth === '4px',
+    `${label} акцент уведомления: ${styles.borderLeftColor} ${styles.borderLeftWidth}`,
+  );
+  check(
+    sameColor(styles.iconBackground, palette.icon),
+    `${label} фон значка: ${styles.iconBackground}`,
+  );
+  check(styles.radius === '12px', `${label} скругление уведомления: ${styles.radius}`);
+  check(styles.shadow !== 'none', `${label} у уведомления нет тени`);
+  check(styles.hasIcon, `${label} в уведомлении нет галочки`);
+  check(
+    styles.closeLabel === 'Закрыть уведомление',
+    `${label} доступное имя крестика: ${styles.closeLabel}`,
+  );
+  check(styles.width === 360, `${label} ширина уведомления: ${styles.width}`);
+  check(
+    styles.offsetRight === 26 && styles.offsetBottom === 26,
+    `${label} отступы уведомления: ${styles.offsetRight}/${styles.offsetBottom}`,
+  );
+  check(styles.fontSize === '14px', `${label} размер текста: ${styles.fontSize}`);
+  check(styles.fontWeight === '600', `${label} начертание текста: ${styles.fontWeight}`);
+}
+
+/** Проверяет мягкое оформление таблицы клиентов (раздел 5 ТЗ). */
+function checkTableStyles(styles, theme, engine) {
+  const label = `[${engine} клиенты ${theme}]`;
+  if (!styles) {
+    check(false, `${label} таблица клиентов не найдена`);
+    return;
+  }
+  const surface = theme === 'dark' ? 'rgba(15, 25, 48, 0.76)' : 'rgba(255, 255, 255, 0.72)';
+  const head = theme === 'dark' ? 'rgba(26, 40, 71, 0.84)' : 'rgba(232, 238, 248, 0.8)';
+  const border = theme === 'dark' ? 'rgba(155, 181, 224, 0.17)' : 'rgba(80, 102, 144, 0.18)';
+  const line = theme === 'dark' ? 'rgba(155, 181, 224, 0.08)' : 'rgba(80, 102, 144, 0.08)';
+  const primary = theme === 'dark' ? '#f2f4ff' : '#101954';
+  const secondary = theme === 'dark' ? '#a5b2cc' : '#65718b';
+
+  check(
+    sameColor(styles.wrapBackground, surface),
+    `${label} поверхность таблицы: ${styles.wrapBackground}`,
+  );
+  check(
+    rgba(styles.wrapBackground)?.a < 1,
+    `${label} поверхность таблицы не полупрозрачная: ${styles.wrapBackground}`,
+  );
+  check(
+    sameColor(styles.wrapBorderColor, border),
+    `${label} граница таблицы: ${styles.wrapBorderColor}`,
+  );
+  check(styles.wrapRadius === '12px', `${label} скругление таблицы: ${styles.wrapRadius}`);
+  check(sameColor(styles.headBackground, head), `${label} фон шапки: ${styles.headBackground}`);
+  check(styles.headPosition === 'sticky', `${label} шапка не закреплена: ${styles.headPosition}`);
+  check(
+    styles.headFontSize === '12px' && styles.headFontWeight === '500',
+    `${label} шрифт шапки: ${styles.headFontSize}/${styles.headFontWeight}`,
+  );
+  check(styles.borderCollapse === 'separate', `${label} border-collapse: ${styles.borderCollapse}`);
+  check(styles.tableLayout === 'fixed', `${label} table-layout: ${styles.tableLayout}`);
+  check(styles.colCount === 4, `${label} колонок в colgroup: ${styles.colCount}`);
+  check(styles.minWidth === '760px', `${label} минимальная ширина таблицы: ${styles.minWidth}`);
+  check(
+    styles.cellBorderLeftWidth === '0px' &&
+      styles.cellBorderRightWidth === '0px' &&
+      styles.cellBorderTopWidth === '0px',
+    `${label} у ячеек есть сетка: ${styles.cellBorderLeftWidth}/${styles.cellBorderRightWidth}/${styles.cellBorderTopWidth}`,
+  );
+  check(
+    sameColor(styles.cellBackground, 'rgba(0, 0, 0, 0)'),
+    `${label} у ячейки своя заливка: ${styles.cellBackground}`,
+  );
+  check(
+    styles.cellPaddingTop === '26px',
+    `${label} вертикальный отступ ячейки: ${styles.cellPaddingTop}`,
+  );
+  check(
+    styles.cellPaddingLeft === '24px',
+    `${label} горизонтальный отступ ячейки: ${styles.cellPaddingLeft}`,
+  );
+  check(styles.cellFontSize === '13px', `${label} размер данных: ${styles.cellFontSize}`);
+  check(styles.cellLineHeight === '19.5px', `${label} межстрочный интервал: ${styles.cellLineHeight}`);
+  check(
+    styles.rowHeights.every((height) => height >= 72 && height <= 92),
+    `${label} высота строк: ${styles.rowHeights.join('|')}`,
+  );
+  check(
+    styles.rowBackgrounds.every((background) => rgba(background)?.a === 0),
+    `${label} в таблице есть зебра: ${styles.rowBackgrounds.join('|')}`,
+  );
+  check(styles.dividerContent !== 'none', `${label} между строками нет разделителя`);
+  check(styles.dividerHeight === '1px', `${label} толщина разделителя: ${styles.dividerHeight}`);
+  check(sameColor(styles.dividerColor, line), `${label} цвет разделителя: ${styles.dividerColor}`);
+  check(styles.dividerLeft === '24px', `${label} отступ разделителя: ${styles.dividerLeft}`);
+  check(
+    sameColor(styles.lastDividerColor, 'rgba(0, 0, 0, 0)'),
+    `${label} линия после последней строки нарисована: ${styles.lastDividerColor}`,
+  );
+  check(styles.rowRadius === '10px', `${label} скругление подсветки: ${styles.rowRadius}`);
+  check(
+    styles.firstNameWeight === '600' && sameColor(styles.firstNameColor, primary),
+    `${label} ФИО не выделено: ${styles.firstNameWeight}/${styles.firstNameColor}`,
+  );
+  check(
+    sameColor(styles.otherCellColor, secondary),
+    `${label} вторичный цвет данных: ${styles.otherCellColor}`,
+  );
+}
+
 /** Сценарии раздела «Клиенты»: форма, проверки, создание, поиск, постоянное хранение. */
 async function checkClientsFlow(browser) {
   const engine = 'chromium';
@@ -684,14 +939,31 @@ async function checkClientsFlow(browser) {
   check(posts.length === 1, `[${engine} клиенты] запросов на создание: ${posts.length}`);
   check(Boolean(posts[0]), `[${engine} клиенты] запрос без ключа идемпотентности`);
   await page.waitForSelector('.toast__message');
-  const toastText = (await page.locator('.toast__message').textContent())?.trim();
-  check(
-    toastText === CLIENT_CREATED_TEXT,
-    `[${engine} клиенты] уведомление после сохранения: "${toastText}"`,
-  );
+  // Ждём завершения анимации появления, чтобы измерить итоговое положение.
+  await page.waitForTimeout(300);
+  data = await collect(page);
+  checkToastStyles(data.toastStyles, 'light', engine);
   check(
     (await page.inputValue('.client-search')) === '',
     `[${engine} клиенты] строка поиска не очищена после создания`,
+  );
+
+  const toastShotLight = `${OUT_DIR}/crm-clients-toast-light-1440x900.png`;
+  await page.screenshot({ path: toastShotLight });
+  notes.push(`скриншот: ${toastShotLight}`);
+
+  // Пока указатель над уведомлением, срок показа приостановлен.
+  await page.hover('.toast__message');
+  await page.waitForTimeout(7000);
+  check(
+    (await page.locator('.toast__message').count()) === 1,
+    `[${engine} клиенты] уведомление скрылось при наведении`,
+  );
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(3600);
+  check(
+    (await page.locator('.toast__message').count()) === 0,
+    `[${engine} клиенты] уведомление не скрылось после ухода указателя`,
   );
   await page.waitForFunction(() => document.querySelectorAll('.client-table tbody tr').length === 1);
   data = await collect(page);
@@ -801,6 +1073,165 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] новый клиент не первый в списке: ${data.clientRows[0]?.[0]}`,
   );
 
+  // Крестик закрывает уведомление сразу.
+  await page.click('.toast__close');
+  await page.waitForTimeout(250);
+  check(
+    (await page.locator('.toast__message').count()) === 0,
+    `[${engine} клиенты] крестик не закрыл уведомление`,
+  );
+
+  // --- Мягкое оформление таблицы и подсветка строки (светлая тема) --------
+  data = await collect(page);
+  checkTableStyles(data.clientTableStyles, 'light', engine);
+
+  const rowHeightBefore = await page.evaluate(() => {
+    const row = document.querySelector('.client-table tbody tr');
+    return row ? Math.round(row.getBoundingClientRect().height) : 0;
+  });
+  await page.hover('.client-table tbody tr');
+  // Ждём перехода подсветки (150 мс) перед измерением.
+  await page.waitForTimeout(300);
+  const hovered = await page.evaluate(() => {
+    const row = document.querySelector('.client-table tbody tr');
+    const cell = row?.querySelector('td');
+    return {
+      background: cell ? getComputedStyle(cell).backgroundColor : null,
+      height: row ? Math.round(row.getBoundingClientRect().height) : 0,
+      cursor: cell ? getComputedStyle(cell).cursor : null,
+    };
+  });
+  check(
+    sameColor(hovered.background, 'rgba(52, 89, 189, 0.055)'),
+    `[${engine} клиенты] подсветка строки: ${hovered.background}`,
+  );
+  check(
+    hovered.height === rowHeightBefore,
+    `[${engine} клиенты] подсветка меняет высоту строки: ${rowHeightBefore} -> ${hovered.height}`,
+  );
+  check(
+    hovered.cursor === 'auto' || hovered.cursor === 'default',
+    `[${engine} клиенты] строка выглядит кликабельной: ${hovered.cursor}`,
+  );
+
+  const hoverShotLight = `${OUT_DIR}/crm-clients-hover-light-1440x900.png`;
+  await page.screenshot({ path: hoverShotLight });
+  notes.push(`скриншот: ${hoverShotLight}`);
+  await page.mouse.move(5, 5);
+
+  const listShotLight = `${OUT_DIR}/crm-clients-list-light-1440x900.png`;
+  await page.screenshot({ path: listShotLight });
+  notes.push(`скриншот: ${listShotLight}`);
+
+  // --- Тёмная тема: данные и оформление сохраняются -----------------------
+  await page.click('[role="switch"]');
+  await page.waitForFunction(
+    () => document.documentElement.getAttribute('data-theme') === 'dark',
+  );
+  await page.waitForTimeout(250);
+  data = await collect(page);
+  check(data.theme === 'dark', `[${engine} клиенты] тема не переключилась: ${data.theme}`);
+  check(
+    data.clientRows.length === 2,
+    `[${engine} клиенты] при смене темы потеряны строки: ${data.clientRows.length}`,
+  );
+  checkTableStyles(data.clientTableStyles, 'dark', engine);
+
+  // --- Уведомление и подсветка строки в тёмной теме -----------------------
+  await openModal();
+  await page.fill('#create-client-first-name', 'Мария');
+  await page.fill('#create-client-phone', '+375293334455');
+  await submit();
+  await waitModalClosed();
+  await page.waitForSelector('.toast__message');
+  await page.waitForTimeout(300);
+  await page.waitForFunction(() => document.querySelectorAll('.client-table tbody tr').length === 3);
+  data = await collect(page);
+  checkToastStyles(data.toastStyles, 'dark', engine);
+
+  const toastShotDark = `${OUT_DIR}/crm-clients-toast-dark-1440x900.png`;
+  await page.screenshot({ path: toastShotDark });
+  notes.push(`скриншот: ${toastShotDark}`);
+
+  await page.click('.toast__close');
+  await page.waitForTimeout(250);
+  check(
+    (await page.locator('.toast__message').count()) === 0,
+    `[${engine} клиенты] крестик не закрыл уведомление в тёмной теме`,
+  );
+
+  await page.hover('.client-table tbody tr:nth-child(2)');
+  await page.waitForTimeout(300);
+  const hoveredDark = await page.evaluate(() => {
+    const row = document.querySelectorAll('.client-table tbody tr')[1];
+    const cell = row?.querySelector('td');
+    return {
+      background: cell ? getComputedStyle(cell).backgroundColor : null,
+      height: row ? Math.round(row.getBoundingClientRect().height) : 0,
+    };
+  });
+  check(
+    sameColor(hoveredDark.background, 'rgba(105, 148, 231, 0.085)'),
+    `[${engine} клиенты] подсветка строки в тёмной теме: ${hoveredDark.background}`,
+  );
+  check(
+    hoveredDark.height === rowHeightBefore,
+    `[${engine} клиенты] подсветка в тёмной теме меняет высоту: ${rowHeightBefore} -> ${hoveredDark.height}`,
+  );
+
+  const hoverShotDark = `${OUT_DIR}/crm-clients-hover-dark-1440x900.png`;
+  await page.screenshot({ path: hoverShotDark });
+  notes.push(`скриншот: ${hoverShotDark}`);
+  await page.mouse.move(5, 5);
+
+  const listShotDark = `${OUT_DIR}/crm-clients-list-dark-1440x900.png`;
+  await page.screenshot({ path: listShotDark });
+  notes.push(`скриншот: ${listShotDark}`);
+
+  // --- Узкий экран: таблица прокручивается, уведомление с отступами 16 px ---
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.waitForTimeout(250);
+  const narrowTable = await page.evaluate(() => {
+    const wrap = document.querySelector('.client-table-wrap');
+    return {
+      scrolls: wrap ? wrap.scrollWidth > wrap.clientWidth + 1 : false,
+      pageFits: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
+    };
+  });
+  check(narrowTable.scrolls, `[${engine} клиенты] таблица не прокручивается на узком экране`);
+  check(narrowTable.pageFits, `[${engine} клиенты] таблица расширяет страницу на узком экране`);
+
+  await openModal();
+  await page.fill('#create-client-first-name', 'Ольга');
+  await page.fill('#create-client-phone', '+375294445566');
+  await submit();
+  await waitModalClosed();
+  await page.waitForSelector('.toast__message');
+  await page.waitForTimeout(300);
+  const narrowToast = await page.evaluate(() => {
+    const element = document.querySelector('.toast__message');
+    const rect = element.getBoundingClientRect();
+    return {
+      width: Math.round(rect.width),
+      left: Math.round(rect.left),
+      right: Math.round(window.innerWidth - rect.right),
+    };
+  });
+  check(
+    narrowToast.left === 16 && narrowToast.right === 16,
+    `[${engine} клиенты] отступы уведомления на узком экране: ${narrowToast.left}/${narrowToast.right}`,
+  );
+  check(
+    narrowToast.width <= 390 - 32,
+    `[${engine} клиенты] ширина уведомления на узком экране: ${narrowToast.width}`,
+  );
+  const narrowToastShot = `${OUT_DIR}/crm-clients-toast-390x844.png`;
+  await page.screenshot({ path: narrowToastShot });
+  notes.push(`скриншот: ${narrowToastShot}`);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.waitForTimeout(200);
+
   // --- Сервер недоступен: окно открыто, значения сохранены ----------------
   await openModal();
   await page.fill('#create-client-first-name', 'Сергей');
@@ -836,8 +1267,8 @@ async function checkClientsFlow(browser) {
   const requestCount = db.prepare('SELECT COUNT(*) AS n FROM client_creation_requests').get().n;
   db.close();
 
-  check(clientCount === 2, `[${engine} клиенты] записей в таблице «Клиенты»: ${clientCount}`);
-  check(requestCount === 2, `[${engine} клиенты] ключей идемпотентности: ${requestCount}`);
+  check(clientCount === 4, `[${engine} клиенты] записей в таблице «Клиенты»: ${clientCount}`);
+  check(requestCount === 4, `[${engine} клиенты] ключей идемпотентности: ${requestCount}`);
   check(
     storedRows.some(
       (row) =>
@@ -854,13 +1285,13 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] вторая запись не найдена в базе`,
   );
   check(
+    storedRows.some((row) => row.first_name === 'Мария' && row.phone === '+375293334455'),
+    `[${engine} клиенты] запись из тёмной темы не найдена в базе`,
+  );
+  check(
     !storedRows.some((row) => row.first_name === 'Сергей'),
     `[${engine} клиенты] неуспешная попытка создала запись`,
   );
-
-  const listShot = `${OUT_DIR}/crm-clients-list-light-1440x900.png`;
-  await page.screenshot({ path: listShot });
-  notes.push(`скриншот: ${listShot}`);
 
   await context.close();
 }

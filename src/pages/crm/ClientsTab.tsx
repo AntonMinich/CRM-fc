@@ -7,9 +7,6 @@ import { CreateClientModal } from '../../features/clients/components/CreateClien
 import { useClients } from '../../features/clients/hooks/useClients';
 import { useDebouncedValue } from '../../features/clients/hooks/useDebouncedValue';
 
-/** Сколько показывается уведомление об успешном создании. */
-const TOAST_TIMEOUT_MS = 3500;
-
 /** Задержка поиска по мере ввода (раздел 5 ТЗ). */
 const SEARCH_DELAY_MS = 300;
 
@@ -24,8 +21,8 @@ export function ClientsTab() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [toastVisible, setToastVisible] = useState(false);
+  const [toastVersion, setToastVersion] = useState(0);
   const createButtonRef = useRef<HTMLButtonElement | null>(null);
-  const toastTimer = useRef<number | null>(null);
   const wasModalOpen = useRef(false);
 
   // Фокус возвращается на кнопку открытия после закрытия окна.
@@ -36,24 +33,14 @@ export function ClientsTab() {
     wasModalOpen.current = modalOpen;
   }, [modalOpen]);
 
-  useEffect(
-    () => () => {
-      if (toastTimer.current !== null) {
-        window.clearTimeout(toastTimer.current);
-      }
-    },
-    [],
-  );
-
   const showCreatedToast = useCallback(() => {
+    // Новая версия перезапускает срок показа, не создавая второе уведомление.
+    setToastVersion((version) => version + 1);
     setToastVisible(true);
-    if (toastTimer.current !== null) {
-      window.clearTimeout(toastTimer.current);
-    }
-    toastTimer.current = window.setTimeout(() => {
-      toastTimer.current = null;
-      setToastVisible(false);
-    }, TOAST_TIMEOUT_MS);
+  }, []);
+
+  const hideToast = useCallback(() => {
+    setToastVisible(false);
   }, []);
 
   /** Уведомление показывается только после подтверждённого сохранения в базе. */
@@ -90,7 +77,9 @@ export function ClientsTab() {
 
       <CreateClientModal open={modalOpen} onClose={handleCloseModal} onCreated={handleCreated} />
 
-      <Toast visible={toastVisible}>Клиент создан</Toast>
+      <Toast visible={toastVisible} version={toastVersion} onClose={hideToast}>
+        Клиент создан
+      </Toast>
     </div>
   );
 }

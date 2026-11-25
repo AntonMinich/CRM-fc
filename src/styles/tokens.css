@@ -95,19 +95,40 @@
   --field-height: 44px;
   --field-radius: 8px;
   --field-padding-x: 12px;
-  --table-min-width: 700px;
+  --table-min-width: 760px;
   --table-font-size: 13px;
   --table-head-font-size: 12px;
-  --table-cell-padding-y: 18px;
-  --table-cell-padding-x: 20px;
+  --table-cell-padding-y: 26px;
+  --table-cell-padding-x: 24px;
   --modal-width: 520px;
   --modal-max-width: 95vw;
   --modal-max-height: 94dvh;
   --modal-radius: 16px;
   --modal-padding: 28px;
   --modal-backdrop: rgb(4 11 28 / 53%);
-  --toast-offset: 25px;
+  --toast-offset: 26px;
   --error-text: #b04040;
+
+  /* Клиенты: мягкое оформление таблицы (раздел 5 ТЗ на обновление оформления) */
+  --clients-surface: rgb(255 255 255 / 72%);
+  --clients-head-surface: rgb(232 238 248 / 80%);
+  --clients-surface-border: rgb(80 102 144 / 18%);
+  --clients-row-line: rgb(80 102 144 / 8%);
+  --clients-row-hover: rgb(52 89 189 / 5.5%);
+  --clients-text-secondary: #65718b;
+  --table-head-padding-y: 20px;
+  --table-line-inset: 24px;
+  --table-row-radius: 10px;
+
+  /* Уведомление об успешном создании клиента (раздел 6 ТЗ) */
+  --toast-width: 360px;
+  --toast-bg: #ffffff;
+  --toast-border: #8cc9b8;
+  --toast-accent: #087f65;
+  --toast-icon-bg: #dff5ec;
+  --toast-text: #101954;
+  --toast-shadow: 0 12px 32px rgb(4 11 28 / 22%);
+  --toast-close-hover: rgb(16 25 84 / 8%);
 
   /* Палитра — светлая тема */
   --bg-workspace: #f5f6fa;
@@ -155,4 +176,21 @@
   --surface: #0d1633;
   --modal-backdrop: rgb(2 6 16 / 66%);
   --error-text: #f2a0a0;
+
+  /* Клиенты: мягкое оформление таблицы в тёмной теме. */
+  --clients-surface: rgb(15 25 48 / 76%);
+  --clients-head-surface: rgb(26 40 71 / 84%);
+  --clients-surface-border: rgb(155 181 224 / 17%);
+  --clients-row-line: rgb(155 181 224 / 8%);
+  --clients-row-hover: rgb(105 148 231 / 8.5%);
+  --clients-text-secondary: #a5b2cc;
+
+  /* Уведомление об успешном создании клиента в тёмной теме. */
+  --toast-bg: #1b3040;
+  --toast-border: #47b99a;
+  --toast-accent: #71e6bd;
+  --toast-icon-bg: #234c48;
+  --toast-text: #f2f4ff;
+  --toast-shadow: 0 14px 40px rgb(0 0 0 / 45%);
+  --toast-close-hover: rgb(242 244 255 / 12%);
 }

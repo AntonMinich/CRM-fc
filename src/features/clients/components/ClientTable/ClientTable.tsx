@@ -61,6 +61,12 @@ export function ClientTable({
     <>
       <div className="client-table-wrap">
         <table className="client-table">
+          <colgroup>
+            <col className="client-table__col client-table__col--client" />
+            <col className="client-table__col client-table__col--phone" />
+            <col className="client-table__col client-table__col--email" />
+            <col className="client-table__col client-table__col--responsible" />
+          </colgroup>
           <thead>
             <tr>
               <th scope="col">Клиент</th>
