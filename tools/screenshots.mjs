@@ -825,7 +825,11 @@ async function checkClientsFlow(browser) {
     problems.push(`[${engine} клиенты] console: ${message.text()}`);
   });
   page.on('pageerror', (error) => problems.push(`[${engine} клиенты] pageerror: ${error.message}`));
-  page.on('dialog', (dialog) => void dialog.accept());
+  let confirmCount = 0;
+  page.on('dialog', (dialog) => {
+    confirmCount += 1;
+    void dialog.accept();
+  });
 
   const openModal = async () => {
     await page.click('.client-toolbar .create-button');
@@ -885,6 +889,118 @@ async function checkClientsFlow(browser) {
     (await page.locator('.client-form__hint').textContent())?.trim() === '* — обязательные поля',
     `[${engine} клиенты] нет пояснения об обязательных полях`,
   );
+
+  // --- Телефон: маска и правила (дополнение к ТЗ) -------------------------
+  const phoneState = () =>
+    page.evaluate(() => {
+      const input = document.querySelector('#create-client-phone');
+      return {
+        type: input.getAttribute('type'),
+        inputMode: input.getAttribute('inputmode'),
+        autoComplete: input.getAttribute('autocomplete'),
+        placeholder: input.getAttribute('placeholder'),
+        value: input.value,
+        error: document.querySelector('#create-client-phone-error')?.textContent?.trim() ?? null,
+      };
+    });
+
+  let phone = await phoneState();
+  check(
+    phone.type === 'tel' && phone.inputMode === 'tel' && phone.autoComplete === 'tel',
+    `[${engine} клиенты] атрибуты телефона: ${phone.type}/${phone.inputMode}/${phone.autoComplete}`,
+  );
+  check(
+    phone.placeholder === '+375 (__) ___-__-__',
+    `[${engine} клиенты] подсказка телефона: ${phone.placeholder}`,
+  );
+  check(phone.value === '', `[${engine} клиенты] поле телефона не пустое: "${phone.value}"`);
+
+  // Ошибка не появляется на первой цифре, но появляется после потери фокуса.
+  await page.click('#create-client-phone');
+  await page.keyboard.type('4');
+  phone = await phoneState();
+  check(phone.error === null, `[${engine} клиенты] ошибка при вводе: "${phone.error}"`);
+  check(phone.value === '+375 (4', `[${engine} клиенты] маска после одной цифры: "${phone.value}"`);
+
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(120);
+  phone = await phoneState();
+  check(
+    phone.error === 'Введите номер полностью: +375 (XX) XXX-XX-XX',
+    `[${engine} клиенты] неполный номер: "${phone.error}"`,
+  );
+
+  // Полный ввод девятью цифрами.
+  await page.fill('#create-client-phone', '');
+  await page.click('#create-client-phone');
+  await page.keyboard.type('447574055');
+  phone = await phoneState();
+  check(
+    phone.value === '+375 (44) 757-40-55',
+    `[${engine} клиенты] маска полного номера: "${phone.value}"`,
+  );
+
+  // Буквы игнорируются, сверх девяти цифр ввод не принимается.
+  await page.fill('#create-client-phone', '');
+  await page.click('#create-client-phone');
+  await page.keyboard.type('a4b4c757405599');
+  phone = await phoneState();
+  check(
+    phone.value === '+375 (44) 757-40-55',
+    `[${engine} клиенты] маска при вводе с буквами: "${phone.value}"`,
+  );
+
+  // Backspace убирает цифру вместе со знаками оформления рядом с ней.
+  await page.keyboard.press('Backspace');
+  phone = await phoneState();
+  check(phone.value === '+375 (44) 757-40-5', `[${engine} клиенты] backspace: "${phone.value}"`);
+
+  await page.keyboard.press('Backspace');
+  phone = await phoneState();
+  check(
+    phone.value === '+375 (44) 757-40',
+    `[${engine} клиенты] backspace со знаком оформления: "${phone.value}"`,
+  );
+
+  // Вставка из буфера: распознаются +375, 375, 80 и «8 0».
+  const pasteCases = [
+    ['447574055', '+375 (44) 757-40-55'],
+    ['+375447574055', '+375 (44) 757-40-55'],
+    ['375447574055', '+375 (44) 757-40-55'],
+    ['8 044 757-40-55', '+375 (44) 757-40-55'],
+    ['+375 (44) 757-40-55', '+375 (44) 757-40-55'],
+    ['80447574055', '+375 (44) 757-40-55'],
+  ];
+  for (const [input, expected] of pasteCases) {
+    await page.fill('#create-client-phone', input);
+    phone = await phoneState();
+    check(phone.value === expected, `[${engine} клиенты] вставка «${input}»: "${phone.value}"`);
+  }
+
+  // Недопустимый код и пустое поле.
+  await page.fill('#create-client-phone', '161234567');
+  await page.locator('#create-client-phone').blur();
+  await page.waitForTimeout(120);
+  phone = await phoneState();
+  check(
+    phone.error === 'Укажите номер с кодом 17, 25, 29, 33 или 44',
+    `[${engine} клиенты] сообщение о коде: "${phone.error}"`,
+  );
+
+  await page.fill('#create-client-phone', '');
+  await page.locator('#create-client-phone').blur();
+  await page.waitForTimeout(120);
+  phone = await phoneState();
+  check(phone.error === 'Укажите телефон', `[${engine} клиенты] пустой телефон: "${phone.error}"`);
+
+  // Только префикс +375 изменением не считается: «Отмена» закрывает без вопроса.
+  confirmCount = 0;
+  await page.click('.client-form .client-button--secondary');
+  await waitModalClosed();
+  await page.waitForTimeout(150);
+  check(confirmCount === 0, `[${engine} клиенты] подтверждение закрытия из-за префикса +375`);
+
+  await openModal();
 
   // --- Клиентская валидация ------------------------------------------------
   posts.length = 0;
@@ -970,7 +1086,9 @@ async function checkClientsFlow(browser) {
   check(data.clientRows.length === 1, `[${engine} клиенты] строк в таблице: ${data.clientRows.length}`);
   check(
     data.clientRows[0]?.join('|') ===
-      ['Иванов Иван Иванович', '+375291112233', 'client@example.com', RESPONSIBLE_NAME].join('|'),
+      ['Иванов Иван Иванович', '+375 (29) 111-22-33', 'client@example.com', RESPONSIBLE_NAME].join(
+        '|',
+      ),
     `[${engine} клиенты] первая строка: ${data.clientRows[0]?.join(' | ')}`,
   );
   check(
@@ -1281,6 +1399,12 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] значения первой записи в базе не совпадают с формой`,
   );
   check(
+    storedRows.every((row) => /^\+375\d{9}$/.test(row.phone)),
+    `[${engine} клиенты] телефон в базе не в формате +375XXXXXXXXX: ${storedRows
+      .map((row) => row.phone)
+      .join(', ')}`,
+  );
+  check(
     storedRows.some((row) => row.first_name === 'Пётр' && row.phone === '+375299998877'),
     `[${engine} клиенты] вторая запись не найдена в базе`,
   );
@@ -1293,6 +1417,35 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] неуспешная попытка создала запись`,
   );
 
+  // --- Старые номера в другом формате показываются как есть ----------------
+  const legacyDb = new DatabaseSync(DB_FILE);
+  legacyDb
+    .prepare(
+      `INSERT INTO clients
+         (id, last_name, first_name, middle_name, phone, email,
+          responsible_user_id, created_at, updated_at)
+       VALUES ('legacy-format-1', 'Старый', 'Номер', NULL, '=375441203343', NULL,
+               'usr-minich-anton-andreevich', '2020-01-01T00:00:00.000Z',
+               '2020-01-01T00:00:00.000Z')`,
+    )
+    .run();
+  legacyDb.close();
+
+  await page.reload({ waitUntil: 'load' });
+  await page.waitForFunction(
+    () => document.querySelectorAll('.client-table tbody tr').length === 5,
+  );
+  const legacyPhone = await page.evaluate(() => {
+    const rows = Array.from(document.querySelectorAll('.client-table tbody tr'));
+    const row = rows.find((item) => item.children[0]?.textContent?.includes('Номер'));
+    return row ? row.children[1]?.textContent?.trim() : null;
+  });
+  check(
+    legacyPhone === '=375441203343',
+    `[${engine} клиенты] старый формат телефона не показан как есть: ${legacyPhone}`,
+  );
+
+  await page.setViewportSize({ width: 1440, height: 900 });
   await context.close();
 }
 

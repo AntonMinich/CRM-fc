@@ -1,4 +1,4 @@
-import { formatClientEmail, formatClientName } from '../../utils/clientDisplay';
+import { formatClientEmail, formatClientName, formatClientPhone } from '../../utils/clientDisplay';
 import type { Client, LoadStatus } from '../../types';
 import './ClientTable.css';
 
@@ -79,7 +79,7 @@ export function ClientTable({
             {items.map((client) => (
               <tr key={client.id}>
                 <td>{formatClientName(client)}</td>
-                <td>{client.phone}</td>
+                <td>{formatClientPhone(client)}</td>
                 <td>{formatClientEmail(client)}</td>
                 <td>{client.responsibleFullName}</td>
               </tr>

@@ -4,6 +4,7 @@
  */
 
 import type { ClientFormErrors, ClientFormValues } from '../types';
+import { toPhoneValue, validatePhone } from './phone';
 
 /** Лимиты длины: те же значения в форме, API и базе. */
 export const CLIENT_LIMITS = {
@@ -15,10 +16,9 @@ export const CLIENT_LIMITS = {
 /** Формат проверки E-mail. Совпадает с серверным. */
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Сообщения об ошибках полей. */
+/** Сообщения об ошибках полей. Сообщения телефона — в utils/phone.ts. */
 export const CLIENT_FIELD_MESSAGES = {
   firstName: 'Укажите имя',
-  phone: 'Укажите телефон',
   responsibleUserId: 'Выберите ответственного',
   email: 'Укажите корректный E-mail',
 } as const;
@@ -47,8 +47,9 @@ export function validateClientForm(
   if (values.firstName.trim() === '') {
     errors.firstName = CLIENT_FIELD_MESSAGES.firstName;
   }
-  if (values.phone.trim() === '') {
-    errors.phone = CLIENT_FIELD_MESSAGES.phone;
+  const phoneError = validatePhone(values.phone.trim());
+  if (phoneError) {
+    errors.phone = phoneError;
   }
   if (values.responsibleUserId.trim() === '' || !isResponsibleAllowed(values.responsibleUserId)) {
     errors.responsibleUserId = CLIENT_FIELD_MESSAGES.responsibleUserId;
@@ -71,7 +72,7 @@ export function toCreateClientInput(values: ClientFormValues) {
     last_name: lastName === '' ? null : lastName,
     first_name: values.firstName.trim(),
     middle_name: middleName === '' ? null : middleName,
-    phone: values.phone.trim(),
+    phone: toPhoneValue(values.phone.trim()),
     email: email === '' ? null : email,
     responsible_user_id: values.responsibleUserId.trim(),
   };

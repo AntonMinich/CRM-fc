@@ -3,6 +3,8 @@
  * Правила совпадают с клиентской валидацией src/features/clients/utils/validateClient.ts.
  */
 
+import { normalizePhone } from './phone.mjs';
+
 /** Лимиты длины совпадают с формой, API и CHECK-ограничениями в базе. */
 export const LIMITS = {
   namePart: 100,
@@ -71,9 +73,9 @@ export function validateClientPayload(payload, deps) {
     fieldErrors.middle_name = `Отчество не длиннее ${LIMITS.namePart} символов`;
   }
 
-  const phone = requiredText(body.phone, LIMITS.phone);
-  if (phone.error || phone.empty || phone.tooLong) {
-    fieldErrors.phone = FIELD_ERROR_MESSAGES.phone;
+  const phone = normalizePhone(body.phone);
+  if (phone.error) {
+    fieldErrors.phone = phone.error;
   }
 
   const email = optionalText(body.email);

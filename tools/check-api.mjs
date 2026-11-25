@@ -7,7 +7,7 @@
  * напрямую в файле базы. Отчёт печатается в консоль.
  */
 
-import { rmSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { DatabaseSync } from 'node:sqlite';
@@ -43,7 +43,7 @@ function describeClient(client) {
 }
 
 const app = await startAppServer({ port: 0, staticDir: null });
-const base = app.url;
+let base = app.url;
 
 async function api(method, path, { body, headers } = {}) {
   const response = await fetch(`${base}${path}`, {
@@ -344,6 +344,82 @@ try {
   );
   await restarted.close();
 
+  // --- Телефон: единый формат и правила (дополнение к ТЗ) ------------------
+  // Предыдущий сервер уже остановлен, для сценариев телефона поднимаем новый.
+  const phoneServer = await startAppServer({ port: 0, staticDir: null });
+  base = phoneServer.url;
+
+  const phoneConfig = JSON.parse(
+    readFileSync(new URL('../config/phone-national-codes.json', import.meta.url), 'utf8'),
+  );
+  const { PHONE_ALLOWED_CODES } = await import('../server/phone.mjs');
+  check(
+    phoneConfig.allowedCodes.join(',') === PHONE_ALLOWED_CODES.join(','),
+    'Список кодов берётся сервером из конфигурации',
+    PHONE_ALLOWED_CODES.join(', '),
+  );
+  const clientPhoneSource = readFileSync(
+    new URL('../src/features/clients/utils/phone.ts', import.meta.url),
+    'utf8',
+  );
+  check(
+    clientPhoneSource.includes('config/phone-national-codes.json'),
+    'Форма и сервер используют один файл конфигурации кодов',
+  );
+
+  const phoneAccepted = [
+    ['+375 (44) 757-40-55', '+375447574055'],
+    ['+375447574055', '+375447574055'],
+    ['375447574055', '+375447574055'],
+    ['8 044 757-40-55', '+375447574055'],
+    ['80447574055', '+375447574055'],
+    ['447574055', '+375447574055'],
+  ];
+  let phoneIndex = 0;
+  for (const [input, expected] of phoneAccepted) {
+    phoneIndex += 1;
+    const createdPhone = await api('POST', '/api/clients', {
+      body: {
+        first_name: `Телефон ${phoneIndex}`,
+        phone: input,
+        responsible_user_id: responsible.id,
+      },
+      headers: { 'Idempotency-Key': `check-phone-${phoneIndex}` },
+    });
+    check(
+      createdPhone.status === 201 && createdPhone.payload?.phone === expected,
+      `Телефон «${input}» сохранён как ${createdPhone.payload?.phone}`,
+      `статус ${createdPhone.status}`,
+    );
+  }
+
+  const storedPhone = readClients().find((row) => row.first_name === 'Телефон 1');
+  check(
+    storedPhone?.phone === '+375447574055' && storedPhone.phone.length === 13,
+    'В базе телефон хранится как +375XXXXXXXXX (13 символов)',
+    `${storedPhone?.phone} (${storedPhone?.phone?.length} символов)`,
+  );
+
+  const phoneRejected = [
+    ['', 'Укажите телефон'],
+    ['+375', 'Укажите телефон'],
+    ['+3754475', 'Введите номер полностью: +375 (XX) XXX-XX-XX'],
+    ['+375161234567', 'Укажите номер с кодом 17, 25, 29, 33 или 44'],
+  ];
+  for (const [input, message] of phoneRejected) {
+    const rejectedPhone = await api('POST', '/api/clients', {
+      body: { first_name: 'Телефон', phone: input, responsible_user_id: responsible.id },
+    });
+    check(
+      rejectedPhone.status === 422 &&
+        rejectedPhone.payload?.error?.fieldErrors?.phone === message,
+      `Телефон «${input || '(пусто)'}» отклонён: «${rejectedPhone.payload?.error?.fieldErrors?.phone}»`,
+      `статус ${rejectedPhone.status}`,
+    );
+  }
+
+  await phoneServer.close();
+
   const dbCheck = new DatabaseSync(DB_FILE);
   const table = dbCheck
     .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'clients'")
@@ -352,7 +428,7 @@ try {
   const fkList = dbCheck.prepare('PRAGMA foreign_key_list(clients)').all();
   dbCheck.close();
   check(table?.name === 'clients', 'В базе есть таблица «Клиенты» (clients)', String(table?.name));
-  check(rowCount === 2, 'В таблице «Клиенты» две подтверждённые записи', `строк ${rowCount}`);
+  check(rowCount === 8, 'В таблице «Клиенты» восемь подтверждённых записей', `строк ${rowCount}`);
   check(
     fkList.some((fk) => fk.table === 'users' && fk.from === 'responsible_user_id'),
     'responsible_user_id — внешний ключ на справочник пользователей',

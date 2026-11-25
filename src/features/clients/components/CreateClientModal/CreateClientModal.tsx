@@ -1,4 +1,4 @@
-import type { FormEvent, SyntheticEvent } from 'react';
+import type { FormEvent, KeyboardEvent, SyntheticEvent } from 'react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 import { ApiError, createClient, fetchResponsibleUsers } from '../../api/clientsApi';
@@ -14,6 +14,12 @@ import {
   toCreateClientInput,
   validateClientForm,
 } from '../../utils/validateClientForm';
+import {
+  PHONE_PLACEHOLDER,
+  formatPhoneInput,
+  normalizePhoneInput,
+  validatePhone,
+} from '../../utils/phone';
 import './CreateClientModal.css';
 
 /** Порядок полей: используется для перевода фокуса к первому некорректному. */
@@ -97,6 +103,8 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
   /** Пользовательские изменения: ответственный по умолчанию изменением не считается. */
   const hasChanges = useMemo(
     () =>
+      // Телефон хранится цифрами национальной части, поэтому один префикс +375
+      // (пустая строка) изменением не считается.
       [values.lastName, values.firstName, values.middleName, values.phone, values.email].some(
         (value) => value.trim() !== '',
       ),
@@ -172,6 +180,51 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
       delete next[field];
       return next;
     });
+  };
+
+  /** Обновляет сообщение телефона, не трогая остальные ошибки. */
+  const setPhoneError = (message: string | null) => {
+    setErrors((previous) => {
+      const next = { ...previous };
+      if (message) {
+        next.phone = message;
+      } else {
+        delete next.phone;
+      }
+      return next;
+    });
+  };
+
+  /**
+   * В поле хранятся только цифры национальной части: маска +375 (XX) XXX-XX-XX
+   * собирается при выводе. Ошибка показывается после потери фокуса или отправки,
+   * а не на первой введённой цифре.
+   */
+  const updatePhone = (raw: string) => {
+    const digits = normalizePhoneInput(raw);
+    setValues((previous) => ({ ...previous, phone: digits }));
+    if (errors.phone) {
+      setPhoneError(validatePhone(digits));
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    setPhoneError(validatePhone(values.phone.trim()));
+  };
+
+  const handlePhoneKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
+    // Backspace удаляет цифру вместе со знаками оформления рядом с ней.
+    if (event.key !== 'Backspace') return;
+    const input = event.currentTarget;
+    if (input.selectionStart !== input.selectionEnd) return;
+    if (values.phone === '') return;
+
+    event.preventDefault();
+    const digits = values.phone.slice(0, -1);
+    setValues((previous) => ({ ...previous, phone: digits }));
+    if (errors.phone) {
+      setPhoneError(validatePhone(digits));
+    }
   };
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -298,10 +351,13 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
               className="client-field__input"
               ref={phoneRef}
               type="tel"
-              value={values.phone}
-              onChange={(event) => updateField('phone', event.target.value)}
+              inputMode="tel"
               autoComplete="tel"
-              maxLength={50}
+              placeholder={PHONE_PLACEHOLDER}
+              value={formatPhoneInput(values.phone)}
+              onChange={(event) => updatePhone(event.target.value)}
+              onBlur={handlePhoneBlur}
+              onKeyDown={handlePhoneKeyDown}
               required
               aria-required="true"
               aria-invalid={Boolean(fieldError('phone'))}

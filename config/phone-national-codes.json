@@ -1,0 +1,6 @@
+{
+  "prefix": "+375",
+  "nationalDigits": 9,
+  "codeLength": 2,
+  "allowedCodes": ["17", "25", "29", "33", "44"]
+}
