@@ -1,0 +1,82 @@
+.header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: var(--header-height);
+  padding: 0 var(--header-padding-x);
+  border-bottom: 1px solid var(--border);
+  background-color: var(--bg-workspace);
+}
+
+.header__heading {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-width: 0;
+}
+
+.header__title {
+  color: var(--text-primary);
+  font-size: var(--header-title-size);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.header__divider {
+  flex: none;
+  width: 1px;
+  height: 22px;
+  background-color: var(--border);
+}
+
+.header__subtitle {
+  color: var(--text-muted);
+  font-size: var(--header-subtitle-size);
+  white-space: nowrap;
+}
+
+.header__avatar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: var(--avatar-size);
+  height: var(--avatar-size);
+  border-radius: 50%;
+  background-color: var(--nav-active-bg);
+  color: var(--nav-active-text);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+@media (max-width: 1023px) {
+  .header {
+    padding: 0 24px;
+  }
+}
+
+@media (max-width: 650px) {
+  .header {
+    padding: 0 22px;
+  }
+
+  /* Вспомогательная подпись и её разделитель скрываются. */
+  .header__divider,
+  .header__subtitle {
+    display: none;
+  }
+}
+
+@media (max-width: 460px) {
+  .header {
+    padding: 0 12px;
+  }
+
+  /* При нехватке места аватар-заглушка скрывается, заголовок раздела остаётся. */
+  .header__avatar {
+    display: none;
+  }
+}

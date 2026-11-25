@@ -1,0 +1,86 @@
+/* Токены оболочки Fincode.
+   Палитра из раздела 8.2 ТЗ; производные оттенки (наведение, дорожка
+   переключателя, фокус) добавлены для состояний и читаемости. */
+
+:root {
+  color-scheme: light;
+
+  /* Цвета брендбука — справочно, в интерфейсе используются через токены ниже. */
+  --brand-blue: #101954;
+  --brand-green: #0d3e36;
+  --brand-white: #ffffff;
+  --brand-black: #000000;
+
+  /* Геометрия боковой панели */
+  --sidebar-width: 248px;
+  --sidebar-padding-x: 20px;
+  --sidebar-padding-top: 32px;
+  --sidebar-padding-bottom: 24px;
+  --logo-width: 190px;
+  --logo-height: 76px;
+  --logo-gap: 47px;
+
+  /* Пункт меню */
+  --nav-item-height: 52px;
+  --nav-item-radius: 10px;
+  --nav-item-padding-x: 17px;
+  --nav-item-gap: 10px;
+  --nav-icon-size: 20px;
+  --nav-icon-gap: 14px;
+  --nav-font-size: 15px;
+
+  /* Верхняя панель */
+  --header-height: 85px;
+  --header-padding-x: 40px;
+  --header-title-size: 19px;
+  --header-subtitle-size: 12px;
+  --avatar-size: 34px;
+
+  /* Переключатель темы */
+  --switch-width: 42px;
+  --switch-height: 24px;
+  --switch-thumb: 18px;
+  --switch-font-size: 13px;
+
+  /* Декор рабочей области */
+  --decor-width: min(52vw, 610px);
+  --decor-opacity: 0.3;
+  --decor-right: -85px;
+  --decor-bottom: -125px;
+
+  /* Палитра — светлая тема */
+  --bg-workspace: #f5f6fa;
+  --bg-sidebar: #ffffff;
+  --text-primary: #101954;
+  --text-muted: #667085;
+  --border: #e6e9f1;
+  --nav-active-bg: #101954;
+  --nav-active-text: #ffffff;
+  --nav-hover-bg: #f1f3f9;
+  --switch-on: #19ad9b;
+  --switch-off: #d9dee9;
+  --switch-knob: #ffffff;
+  --focus-ring: #19ad9b;
+}
+
+[data-theme='dark'] {
+  color-scheme: dark;
+
+  /* Палитра — тёмная тема */
+  --bg-workspace: #080f24;
+  --bg-sidebar: #0d1633;
+  --text-primary: #f2f4ff;
+  --text-muted: #929eb9;
+  --border: #202b47;
+  --nav-active-bg: #1b2c59;
+  --nav-active-text: #ffffff;
+  --nav-hover-bg: #17224a;
+  --switch-off: #2a3555;
+  --switch-knob: #ffffff;
+  --focus-ring: #19ad9b;
+
+  /* Тот же отпечаток, но плотнее и прижат к правому нижнему углу. */
+  --decor-opacity: 0.55;
+  --decor-right: 0;
+  --decor-bottom: 0;
+}

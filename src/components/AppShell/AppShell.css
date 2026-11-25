@@ -1,0 +1,23 @@
+.app-shell {
+  display: flex;
+  height: 100%;
+  background-color: var(--bg-workspace);
+}
+
+.app-shell__column {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Рабочая область: пустое пространство под верхней панелью справа от меню.
+   overflow: hidden — декор не создаёт прокрутку и обрезается по границам области. */
+.workspace {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
+  background-color: var(--bg-workspace);
+}

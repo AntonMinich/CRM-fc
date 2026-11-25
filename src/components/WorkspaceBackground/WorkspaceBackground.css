@@ -1,0 +1,21 @@
+.workspace-background {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Один и тот же чистый отпечаток в обеих темах: отличается только
+   непрозрачность и смещение (задаются токенами темы). */
+.workspace-background__decor {
+  position: absolute;
+  right: var(--decor-right);
+  bottom: var(--decor-bottom);
+  width: var(--decor-width);
+  height: auto;
+  opacity: var(--decor-opacity);
+  pointer-events: none;
+  user-select: none;
+  -webkit-user-drag: none;
+}
