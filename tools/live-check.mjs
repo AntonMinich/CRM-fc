@@ -25,12 +25,22 @@ for (const path of ['/crm', '/service-desk']) {
     active: document.querySelector('[aria-current="page"]')?.textContent?.trim(),
     nav: Array.from(document.querySelectorAll('nav a')).map((a) => a.textContent.trim()),
     workspace: document.querySelector('main')?.textContent.trim(),
+    columns: document.querySelectorAll('.kanban-column').length,
+    totals: Array.from(document.querySelectorAll('.contract-value')).map((el) =>
+      el.textContent.replace(/\u00A0/g, ' ').trim(),
+    ),
+    createButton: document.querySelector('.create-button')?.textContent?.trim() ?? null,
+    boardScrolls: (() => {
+      const board = document.querySelector('.kanban-board');
+      return board ? board.scrollWidth > board.clientWidth + 1 : false;
+    })(),
     scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
   }));
   console.log(
     `${path}: заголовок=${data.title}, тема=${data.theme}, активный=${data.active}, ` +
-      `меню=[${data.nav.join(', ')}], рабочая область="${data.workspace}", ` +
-      `без прокрутки=${data.scroll}`,
+      `меню=[${data.nav.join(', ')}], столбцов=${data.columns}, ` +
+      `суммы=[${data.totals.join(', ')}], кнопка=${data.createButton}, ` +
+      `прокрутка доски=${data.boardScrolls}, без прокрутки страницы=${data.scroll}`,
   );
 }
 

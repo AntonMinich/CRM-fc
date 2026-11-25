@@ -48,6 +48,37 @@
   --decor-right: -85px;
   --decor-bottom: -125px;
 
+  /* Страница CRM: панель действий */
+  --crm-toolbar-padding-x: 32px;
+  --crm-toolbar-padding-top: 26px;
+  --crm-toolbar-gap: 22px;
+  --create-button-height: 44px;
+  --create-button-radius: 10px;
+  --create-button-font-size: 14px;
+  --create-button-bg: #101954;
+  --create-button-bg-hover: #1b2a63;
+  --create-button-bg-active: #0b1240;
+  --create-button-text: #ffffff;
+
+  /* Страница CRM: канбан */
+  --kanban-padding-x: 32px;
+  --kanban-padding-x-narrow: 18px;
+  --kanban-padding-bottom: 32px;
+  --kanban-padding-bottom-narrow: 18px;
+  --kanban-column-gap: 12px;
+  --kanban-column-min-width: 174px;
+  --kanban-column-min-width-narrow: 210px;
+  --kanban-column-radius: 12px;
+  --kanban-column-border: 1px;
+  --kanban-column-border-color: var(--border);
+  --kanban-header-min-height: 86px;
+  --kanban-header-padding: 15px;
+  --column-header-line-gap: 9px;
+  --column-header-text: #ffffff;
+  --column-title-size: 13.5px;
+  --column-total-size: 20px;
+  --kanban-body-bg: rgb(236 240 247 / 94%);
+
   /* Палитра — светлая тема */
   --bg-workspace: #f5f6fa;
   --bg-sidebar: #ffffff;
@@ -83,4 +114,10 @@
   --decor-opacity: 0.55;
   --decor-right: 0;
   --decor-bottom: 0;
+
+  /* Кнопка «Создать» и тело столбцов в тёмной теме. */
+  --create-button-bg: #355ac7;
+  --create-button-bg-hover: #4066d4;
+  --create-button-bg-active: #2a49a8;
+  --kanban-body-bg: rgb(18 30 57 / 94%);
 }

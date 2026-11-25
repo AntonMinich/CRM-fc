@@ -1,0 +1,10 @@
+.column-body {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: var(--kanban-column-border) solid var(--kanban-column-border-color);
+  border-top: 0;
+  border-radius: 0 0 var(--kanban-column-radius) var(--kanban-column-radius);
+  background-color: var(--kanban-body-bg);
+}

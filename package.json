@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "screenshots": "node tools/screenshots.mjs",
-    "check:dev": "node tools/live-check.mjs"
+    "check:dev": "node tools/live-check.mjs",
+    "check:money": "node tools/check-money.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

@@ -1,0 +1,23 @@
+.kanban-board {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: var(--kanban-column-gap);
+  min-height: 0;
+  padding: 0 var(--kanban-padding-x) var(--kanban-padding-bottom);
+  overflow-x: auto;
+  overflow-y: hidden;
+  /* Горизонтальная прокрутка доски не «уезжает» на страницу. */
+  overscroll-behavior-x: contain;
+}
+
+.kanban-board:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: -2px;
+}
+
+@media (max-width: 650px) {
+  .kanban-board {
+    padding: 0 var(--kanban-padding-x-narrow) var(--kanban-padding-bottom-narrow);
+  }
+}

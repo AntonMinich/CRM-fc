@@ -1,0 +1,21 @@
+.crm-toolbar {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: var(--crm-toolbar-padding-top) var(--crm-toolbar-padding-x)
+    var(--crm-toolbar-gap);
+}
+
+.crm-toolbar__caption {
+  color: var(--text-muted);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+@media (max-width: 650px) {
+  .crm-toolbar {
+    padding: 18px var(--kanban-padding-x-narrow) 16px;
+  }
+}

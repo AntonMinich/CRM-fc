@@ -1,0 +1,17 @@
+.contract-value {
+  display: block;
+  font-size: var(--column-total-size);
+  font-weight: 600;
+  line-height: 1.15;
+  /* Табличные цифры: суммы не «дрожат» при смене значений. */
+  font-variant-numeric: tabular-nums;
+  /* Длинные суммы не обрезаются многоточием. */
+  overflow-wrap: normal;
+  white-space: nowrap;
+}
+
+.contract-value--pending {
+  font-size: 14px;
+  font-weight: 500;
+  opacity: 0.85;
+}

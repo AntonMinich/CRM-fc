@@ -1,0 +1,13 @@
+.kanban-column {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: var(--kanban-column-min-width);
+  min-height: 0;
+}
+
+@media (max-width: 650px) {
+  .kanban-column {
+    min-width: var(--kanban-column-min-width-narrow);
+  }
+}

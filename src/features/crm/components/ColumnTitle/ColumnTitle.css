@@ -1,0 +1,6 @@
+.column-title {
+  display: block;
+  font-size: var(--column-title-size);
+  font-weight: 600;
+  line-height: 1.2;
+}

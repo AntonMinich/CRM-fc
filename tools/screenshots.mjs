@@ -18,7 +18,11 @@ const ROUTES = [
   { name: 'crm', path: '/crm', title: 'CRM' },
   { name: 'service-desk', path: '/service-desk', title: 'Service Desk' },
 ];
+const KANBAN_TITLES = Array.from({ length: 7 }, (_, index) => `Столбец ${index + 1}`);
+const KANBAN_IDS = Array.from({ length: 7 }, (_, index) => `column-${index + 1}`);
+const CREATE_NOTICE_TEXT = 'Форма создания будет добавлена на следующем этапе';
 const VIEWPORTS = [
+  { name: '1800x1000', width: 1800, height: 1000, shot: false },
   { name: '1440x900', width: 1440, height: 900, shot: true },
   { name: '1280x800', width: 1280, height: 800, shot: false },
   { name: '1024x768', width: 1024, height: 768, shot: false },
@@ -61,6 +65,11 @@ async function collect(page) {
     const subtitle = document.querySelector('.header__subtitle');
     const avatar = document.querySelector('.header__avatar');
     const track = switchEl?.querySelector('.theme-switch__track');
+    const createButton = document.querySelector('.create-button');
+    const board = document.querySelector('.kanban-board');
+    const columns = Array.from(document.querySelectorAll('.kanban-column'));
+    const headers = columns.map((column) => column.querySelector('.column-header'));
+    const trim = (value) => (value ?? '').replace(/\u00A0/g, ' ').trim();
     return {
       theme: root.getAttribute('data-theme'),
       colorScheme: root.style.colorScheme,
@@ -105,6 +114,45 @@ async function collect(page) {
            Math.round(track.getBoundingClientRect().height)]
         : null,
       avatarVisible: avatar ? getComputedStyle(avatar).display !== 'none' : false,
+      // Канбан и кнопка «Создать» (только в разделе CRM).
+      hasCreateButton: createButton !== null,
+      createButtonText: createButton ? trim(createButton.textContent) : null,
+      createButtonHeight: createButton
+        ? Math.round(createButton.getBoundingClientRect().height)
+        : 0,
+      createButtonRadius: createButton ? getComputedStyle(createButton).borderRadius : null,
+      createButtonRight: createButton ? Math.round(createButton.getBoundingClientRect().right) : 0,
+      columnCount: columns.length,
+      columnIds: columns.map((column) => column.getAttribute('data-column-id')),
+      columnTitles: columns.map((column) => trim(column.querySelector('.column-title')?.textContent)),
+      columnTotals: columns.map((column) => trim(column.querySelector('.contract-value')?.textContent)),
+      columnBadges: document.querySelectorAll('.kanban-column .badge, .kanban-column .count').length,
+      columnHeaderColors: headers.map((header) =>
+        header ? getComputedStyle(header).backgroundColor : null,
+      ),
+      columnHeaderHeights: headers.map((header) =>
+        header ? Math.round(header.getBoundingClientRect().height) : 0,
+      ),
+      columnRows: new Set(
+        columns.map((column) => Math.round(column.getBoundingClientRect().top)),
+      ).size,
+      columnBodyText: Array.from(document.querySelectorAll('.column-body'))
+        .map((body) => trim(body.textContent))
+        .join(''),
+      boardPresent: board !== null,
+      boardScrolls: board ? board.scrollWidth > board.clientWidth + 1 : false,
+      boardPaddingX: board ? getComputedStyle(board).paddingLeft : null,
+      boardGap: board ? getComputedStyle(board).columnGap : null,
+      noticeText: trim(document.querySelector('.create-notice__message')?.textContent),
+      noticeCount: document.querySelectorAll('.create-notice__message').length,
+      totalWhiteSpace: (() => {
+        const element = document.querySelector('.contract-value');
+        return element ? getComputedStyle(element).whiteSpace : null;
+      })(),
+      totalTextOverflow: (() => {
+        const element = document.querySelector('.contract-value');
+        return element ? getComputedStyle(element).textOverflow : null;
+      })(),
     };
   });
 }
@@ -125,8 +173,6 @@ async function checkLayout(page, engine, theme, viewport, route) {
   );
   check(data.activeCount === 1, `${label} активных пунктов: ${data.activeCount}`);
   check(data.activeLabel === route.title, `${label} активный пункт: ${data.activeLabel}`);
-  check(data.workspaceText === '', `${label} рабочая область не пуста: "${data.workspaceText}"`);
-  check(data.workspaceNodes === 1, `${label} узлов в main: ${data.workspaceNodes}`);
   check(
     data.scrollWidth <= data.clientWidth,
     `${label} горизонтальная прокрутка: ${data.scrollWidth} > ${data.clientWidth}`,
@@ -136,6 +182,54 @@ async function checkLayout(page, engine, theme, viewport, route) {
     data.decorPointerEvents === 'none',
     `${label} pointer-events декора: ${data.decorPointerEvents}`,
   );
+
+  // Раздел CRM: панель действий с кнопкой «Создать» и канбан из семи столбцов.
+  if (route.name === 'crm') {
+    check(data.workspaceNodes === 2, `${label} узлов в main: ${data.workspaceNodes}`);
+    check(data.hasCreateButton, `${label} кнопка «Создать» отсутствует`);
+    check(data.createButtonText === 'Создать', `${label} подпись кнопки: ${data.createButtonText}`);
+    check(data.boardPresent, `${label} доска канбана отсутствует`);
+    check(data.columnCount === 7, `${label} столбцов: ${data.columnCount}`);
+    check(
+      data.columnIds.join('|') === KANBAN_IDS.join('|'),
+      `${label} идентификаторы столбцов: ${data.columnIds.join('|')}`,
+    );
+    check(
+      data.columnTitles.join('|') === KANBAN_TITLES.join('|'),
+      `${label} названия столбцов: ${data.columnTitles.join('|')}`,
+    );
+    check(
+      data.columnTotals.every((total) => total === '0 BYN'),
+      `${label} суммы столбцов: ${data.columnTotals.join('|')}`,
+    );
+    check(
+      data.columnHeaderColors.every((color) => color && color !== 'rgba(0, 0, 0, 0)'),
+      `${label} у шапки нет цвета: ${data.columnHeaderColors.join('|')}`,
+    );
+    check(
+      new Set(data.columnHeaderColors).size === 7,
+      `${label} цвета шапок повторяются: ${data.columnHeaderColors.join('|')}`,
+    );
+    check(data.columnRows === 1, `${label} столбцы не в один ряд: ${data.columnRows}`);
+    check(data.columnBodyText === '', `${label} тело столбца не пустое: "${data.columnBodyText}"`);
+    check(data.columnBadges === 0, `${label} найдены бейджи-счётчики: ${data.columnBadges}`);
+    check(data.noticeCount === 0, `${label} уведомление видно без нажатия: ${data.noticeCount}`);
+    check(data.totalWhiteSpace === 'nowrap', `${label} сумма переносится: ${data.totalWhiteSpace}`);
+    check(
+      data.totalTextOverflow !== 'ellipsis',
+      `${label} сумма обрезается многоточием: ${data.totalTextOverflow}`,
+    );
+  }
+
+  // Service Desk: без канбана и кнопки создания сделки.
+  if (route.name === 'service-desk') {
+    check(data.workspaceNodes === 1, `${label} узлов в main: ${data.workspaceNodes}`);
+    check(data.workspaceText === '', `${label} рабочая область не пуста: "${data.workspaceText}"`);
+    check(!data.hasCreateButton, `${label} в Service Desk есть кнопка «Создать»`);
+    check(!data.boardPresent, `${label} в Service Desk есть канбан`);
+    check(data.columnCount === 0, `${label} в Service Desk столбцов: ${data.columnCount}`);
+  }
+
   check(data.switchChecked === String(theme === 'dark'), `${label} aria-checked`);
   check(data.switchName === 'Тёмная тема', `${label} имя переключателя: ${data.switchName}`);
   check(!data.navLabelsTruncated, `${label} подпись пункта меню обрезана`);
@@ -153,6 +247,20 @@ async function checkLayout(page, engine, theme, viewport, route) {
       data.switchSize && data.switchSize[0] === 42 && data.switchSize[1] === 24,
       `${label} размер переключателя: ${data.switchSize}`,
     );
+
+    if (route.name === 'crm') {
+      check(data.createButtonHeight === 44, `${label} высота кнопки: ${data.createButtonHeight}`);
+      check(
+        data.createButtonRadius === '10px',
+        `${label} скругление кнопки: ${data.createButtonRadius}`,
+      );
+      check(data.boardPaddingX === '32px', `${label} отступ доски: ${data.boardPaddingX}`);
+      check(data.boardGap === '12px', `${label} расстояние столбцов: ${data.boardGap}`);
+      check(
+        data.columnHeaderHeights.every((height) => height >= 86),
+        `${label} высота шапок: ${data.columnHeaderHeights.join('|')}`,
+      );
+    }
   }
 
   if (viewport.name === '390x844') {
@@ -161,6 +269,16 @@ async function checkLayout(page, engine, theme, viewport, route) {
       data.subtitleDisplay === 'none',
       `${label} подпись «Рабочее пространство» видна: ${data.subtitleDisplay}`,
     );
+
+    if (route.name === 'crm') {
+      check(data.columnCount === 7, `${label} столбцов: ${data.columnCount}`);
+      check(data.columnRows === 1, `${label} столбцы не в один ряд: ${data.columnRows}`);
+      check(data.boardScrolls, `${label} доска не прокручивается на узком экране`);
+      check(
+        data.createButtonRight <= viewport.width,
+        `${label} кнопка «Создать» за пределами экрана: ${data.createButtonRight}`,
+      );
+    }
   }
 
   if (viewport.shot && engine === 'chromium') {
@@ -242,13 +360,15 @@ async function checkBehaviour(browser, engine) {
     // «Full Keyboard Access»), поэтому фокусируемость проверяем программно
     // и отдельно проверяем активацию ссылки с клавиатуры.
     const focusable = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('a.nav-item, [role="switch"]')).map((element) => {
+      Array.from(
+        document.querySelectorAll('a.nav-item, [role="switch"], .create-button, .kanban-board'),
+      ).map((element) => {
         element.focus();
         return document.activeElement === element;
       }),
     );
     check(
-      focusable.length === 3 && focusable.every(Boolean),
+      focusable.length === 5 && focusable.every(Boolean),
       `[${engine}] интерактивные элементы фокусируемы: ${focusable.join(', ')}`,
     );
 
@@ -263,22 +383,84 @@ async function checkBehaviour(browser, engine) {
     );
   } else {
     const order = [];
-    for (let index = 0; index < 4; index += 1) {
+    for (let index = 0; index < 5; index += 1) {
       await page.keyboard.press('Tab');
       order.push(
         await page.evaluate(() => {
           const element = document.activeElement;
           if (!element) return 'нет';
           if (element.matches('[role="switch"]')) return 'переключатель';
+          if (element.matches('.create-button')) return 'Создать';
+          if (element.matches('.kanban-board')) return 'доска';
           return element.textContent?.trim() || element.tagName;
         }),
       );
     }
     check(
-      order[0] === 'CRM' && order[1] === 'Service Desk' && order[2] === 'переключатель',
+      order[0] === 'CRM' &&
+        order[1] === 'Service Desk' &&
+        order[2] === 'переключатель' &&
+        order[3] === 'Создать' &&
+        order[4] === 'доска',
       `[${engine}] порядок Tab: ${order.join(' → ')}`,
     );
   }
+
+  await context.close();
+}
+
+/** Кнопка «Создать»: уведомление-заглушка, автозакрытие и доступность. */
+async function checkCreateButton(browser, engine) {
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  page.on('console', (message) => {
+    if (message.type() === 'error') {
+      problems.push(`[${engine} уведомление] console: ${message.text()}`);
+    }
+  });
+  page.on('pageerror', (error) => {
+    problems.push(`[${engine} уведомление] pageerror: ${error.message}`);
+  });
+
+  await page.goto(`${BASE_URL}/crm`, { waitUntil: 'load' });
+  await page.waitForSelector('.create-button');
+  check(
+    (await collect(page)).noticeCount === 0,
+    `[${engine}] уведомление видно до нажатия «Создать»`,
+  );
+
+  await page.click('.create-button');
+  await page.waitForSelector('.create-notice__message');
+  const afterClick = await collect(page);
+  check(
+    afterClick.noticeText === CREATE_NOTICE_TEXT,
+    `[${engine}] текст уведомления: "${afterClick.noticeText}"`,
+  );
+  check(afterClick.noticeCount === 1, `[${engine}] уведомлений: ${afterClick.noticeCount}`);
+  check(
+    afterClick.columnTotals.every((total) => total === '0 BYN'),
+    `[${engine}] суммы изменились после нажатия: ${afterClick.columnTotals.join('|')}`,
+  );
+
+  if (engine === 'chromium') {
+    const file = `${OUT_DIR}/crm-light-notice-1440x900.png`;
+    await page.screenshot({ path: file });
+    notes.push(`скриншот: ${file}`);
+  }
+
+  // Повторное нажатие не создаёт второе уведомление.
+  await page.click('.create-button');
+  check(
+    (await collect(page)).noticeCount === 1,
+    `[${engine}] второе нажатие добавило уведомление`,
+  );
+
+  // Уведомление скрывается примерно через 3,5 секунды.
+  await page.waitForSelector('.create-notice__message', { state: 'detached', timeout: 8000 });
+  check(
+    (await collect(page)).noticeCount === 0,
+    `[${engine}] уведомление не скрылось автоматически`,
+  );
 
   await context.close();
 }
@@ -339,6 +521,7 @@ async function main() {
         }
 
         await checkBehaviour(browser, engine.name);
+        await checkCreateButton(browser, engine.name);
       } finally {
         await browser.close();
       }

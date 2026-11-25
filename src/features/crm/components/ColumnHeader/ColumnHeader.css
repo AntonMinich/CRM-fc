@@ -1,0 +1,11 @@
+.column-header {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--column-header-line-gap);
+  justify-content: center;
+  min-height: var(--kanban-header-min-height);
+  padding: var(--kanban-header-padding);
+  border-radius: var(--kanban-column-radius) var(--kanban-column-radius) 0 0;
+  color: var(--column-header-text);
+}
