@@ -1,13 +1,17 @@
+import type { Ref } from 'react';
+
 import './CreateButton.css';
 
 interface CreateButtonProps {
   onClick: () => void;
+  /** Ссылка на кнопку: нужна для возврата фокуса после закрытия формы. */
+  buttonRef?: Ref<HTMLButtonElement>;
 }
 
-/** Кнопка «Создать» над доской. Форму создания на этом этапе не открывает. */
-export function CreateButton({ onClick }: CreateButtonProps) {
+/** Кнопка «Создать» над содержимым раздела. */
+export function CreateButton({ onClick, buttonRef }: CreateButtonProps) {
   return (
-    <button type="button" className="create-button" onClick={onClick}>
+    <button type="button" className="create-button" onClick={onClick} ref={buttonRef}>
       <span className="create-button__icon" aria-hidden="true">
         <svg
           viewBox="0 0 16 16"

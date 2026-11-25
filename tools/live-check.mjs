@@ -16,20 +16,25 @@ page.on('response', (r) => {
   if (r.status() >= 400) problems.push(`HTTP ${r.status()} ${r.url()}`);
 });
 
-for (const path of ['/crm', '/service-desk']) {
+for (const path of ['/crm/deals', '/crm/clients', '/crm/suppliers', '/service-desk']) {
   await page.goto(`${BASE}${path}`, { waitUntil: 'load' });
   await page.waitForLoadState('networkidle');
   const data = await page.evaluate(() => ({
     title: document.querySelector('h1')?.textContent,
     theme: document.documentElement.getAttribute('data-theme'),
-    active: document.querySelector('[aria-current="page"]')?.textContent?.trim(),
-    nav: Array.from(document.querySelectorAll('nav a')).map((a) => a.textContent.trim()),
-    workspace: document.querySelector('main')?.textContent.trim(),
+    active: document.querySelector('.sidebar__nav [aria-current="page"]')?.textContent?.trim(),
+    nav: Array.from(document.querySelectorAll('.sidebar__nav a')).map((a) =>
+      a.textContent.trim(),
+    ),
+    tabs: Array.from(document.querySelectorAll('.crm-tab')).map((a) => a.textContent.trim()),
+    activeTab: document.querySelector('.crm-tab--active')?.textContent?.trim() ?? null,
     columns: document.querySelectorAll('.kanban-column').length,
     totals: Array.from(document.querySelectorAll('.contract-value')).map((el) =>
       el.textContent.replace(/\u00A0/g, ' ').trim(),
     ),
     createButton: document.querySelector('.create-button')?.textContent?.trim() ?? null,
+    clientRows: document.querySelectorAll('.client-table tbody tr').length,
+    clientState: document.querySelector('.client-table-state')?.textContent.trim() ?? null,
     boardScrolls: (() => {
       const board = document.querySelector('.kanban-board');
       return board ? board.scrollWidth > board.clientWidth + 1 : false;
@@ -37,14 +42,15 @@ for (const path of ['/crm', '/service-desk']) {
     scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
   }));
   console.log(
-    `${path}: заголовок=${data.title}, тема=${data.theme}, активный=${data.active}, ` +
-      `меню=[${data.nav.join(', ')}], столбцов=${data.columns}, ` +
-      `суммы=[${data.totals.join(', ')}], кнопка=${data.createButton}, ` +
+    `${path}: заголовок=${data.title}, тема=${data.theme}, меню=[${data.nav.join(', ')}], ` +
+      `пункт=${data.active}, вкладки=[${data.tabs.join(', ')}], активная=${data.activeTab}, ` +
+      `столбцов=${data.columns}, суммы=[${data.totals.join(', ')}], кнопка=${data.createButton}, ` +
+      `строк клиентов=${data.clientRows}, состояние=${data.clientState}, ` +
       `прокрутка доски=${data.boardScrolls}, без прокрутки страницы=${data.scroll}`,
   );
 }
 
-await page.goto(`${BASE}/crm`, { waitUntil: 'load' });
+await page.goto(`${BASE}/crm/clients`, { waitUntil: 'load' });
 await page.click('[role="switch"]');
 await page.waitForTimeout(200);
 await page.screenshot({ path: 'docs/screenshots/live-dev-dark-1440x900.png' });

@@ -3,15 +3,20 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "Оболочка корпоративного приложения Fincode: разделы CRM и Service Desk",
+  "description": "Fincode: CRM с канбаном сделок и справочником клиентов, раздел Service Desk",
   "scripts": {
-    "dev": "vite",
+    "dev": "node tools/dev.mjs",
+    "dev:web": "vite",
+    "dev:api": "node server/index.mjs",
     "build": "tsc --noEmit && vite build",
-    "preview": "vite preview",
+    "start": "node server/index.mjs",
+    "preview": "node server/index.mjs",
+    "migrate": "node server/migrate.mjs",
     "typecheck": "tsc --noEmit",
-    "screenshots": "node tools/screenshots.mjs",
+    "screenshots": "npm run build && node tools/screenshots.mjs",
     "check:dev": "node tools/live-check.mjs",
-    "check:money": "node tools/check-money.mjs"
+    "check:money": "node tools/check-money.mjs",
+    "check:api": "node tools/check-api.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

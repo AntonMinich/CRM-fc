@@ -1,9 +1,13 @@
 node_modules/
 dist/
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
 tools/__pycache__/
 tools/_preview/
-tools/_dev.log
-tools/_dev.err.log
+tools/_*.log
 *.local
 .DS_Store
 Thumbs.db

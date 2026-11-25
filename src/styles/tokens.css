@@ -79,6 +79,36 @@
   --column-total-size: 20px;
   --kanban-body-bg: rgb(236 240 247 / 94%);
 
+  /* Верхнее меню CRM */
+  --crm-tabs-gap: 32px;
+  --crm-tabs-padding-x: 32px;
+  --crm-tabs-padding-x-narrow: 18px;
+  --crm-tab-padding-top: 21px;
+  --crm-tab-padding-bottom: 18px;
+  --crm-tab-font-size: 14px;
+  --crm-tab-underline: 3px;
+  --crm-tab-accent: #25ada2;
+
+  /* Клиенты: панель действий, таблица, модальное окно */
+  --surface: #ffffff;
+  --search-width: 420px;
+  --field-height: 44px;
+  --field-radius: 8px;
+  --field-padding-x: 12px;
+  --table-min-width: 700px;
+  --table-font-size: 13px;
+  --table-head-font-size: 12px;
+  --table-cell-padding-y: 18px;
+  --table-cell-padding-x: 20px;
+  --modal-width: 520px;
+  --modal-max-width: 95vw;
+  --modal-max-height: 94dvh;
+  --modal-radius: 16px;
+  --modal-padding: 28px;
+  --modal-backdrop: rgb(4 11 28 / 53%);
+  --toast-offset: 25px;
+  --error-text: #b04040;
+
   /* Палитра — светлая тема */
   --bg-workspace: #f5f6fa;
   --bg-sidebar: #ffffff;
@@ -120,4 +150,9 @@
   --create-button-bg-hover: #4066d4;
   --create-button-bg-active: #2a49a8;
   --kanban-body-bg: rgb(18 30 57 / 94%);
+
+  /* Поверхности таблицы, полей и модального окна в тёмной теме. */
+  --surface: #0d1633;
+  --modal-backdrop: rgb(2 6 16 / 66%);
+  --error-text: #f2a0a0;
 }

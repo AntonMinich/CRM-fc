@@ -1,5 +1,6 @@
-/* Содержимое раздела CRM поверх фонового отпечатка. */
-.crm-workspace {
+/* Содержимое раздела CRM: верхнее меню вкладок и область активной вкладки. */
+
+.crm {
   position: relative;
   z-index: 1;
   display: flex;
@@ -7,3 +8,13 @@
   height: 100%;
   min-height: 0;
 }
+
+/* Область вкладки: панель действий, содержимое и уведомления. */
+.crm-view {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+}
+
