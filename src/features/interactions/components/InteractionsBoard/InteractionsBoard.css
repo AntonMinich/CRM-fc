@@ -1,0 +1,270 @@
+/* Общий раздел CRM «Взаимодействия»: панель действий, фильтры и таблица. */
+
+/* Отступы и рамки — как на вкладках «Клиенты» и «Поставщики». */
+.interactions-board {
+  padding-bottom: 24px;
+}
+
+/* Панель кнопок и поиска: одна строка во всю ширину контейнера. */
+.interactions-board__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: var(--crm-toolbar-padding-top) var(--crm-toolbar-padding-x) 16px;
+}
+
+.interactions-board__top .interactions__actions {
+  gap: 12px;
+}
+
+/* Поиск: 360 px, прижат к правому краю контейнера, как граница таблицы. */
+.interactions-board__search {
+  flex: 0 1 360px;
+  width: 360px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Фильтры выровнены по левой границе контейнера, элементы — по нижнему краю. */
+.interactions-board__filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 0 var(--crm-toolbar-padding-x);
+  margin: 0 0 20px;
+}
+
+/* Быстрые фильтры статуса: высота как у полей и кнопок строки. */
+.interactions-board__filters .interactions__filter {
+  min-height: var(--field-height);
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+.interactions-board__field {
+  display: grid;
+  gap: 4px;
+}
+
+.interactions-board__label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+/* Выпадающие списки и поля дат — в стиле полей приложения. */
+.interactions-board__control {
+  min-height: var(--field-height);
+  padding: 0 var(--field-padding-x);
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+}
+
+.interactions-board__control:disabled {
+  color: var(--text-muted);
+}
+
+.interactions-board__control:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+.interactions-board__check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: var(--field-height);
+  color: var(--text-muted);
+  font-size: 13px;
+  cursor: pointer;
+}
+
+/* «Сбросить» — кнопка второго плана, как «Повторить» в списке клиентов. */
+.interactions-board__filters .interactions-board__reset {
+  padding: 0 18px;
+  border-radius: var(--field-radius);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.interactions-board__filters .interactions-board__reset:hover {
+  background-color: var(--nav-hover-bg);
+  color: var(--text-primary);
+}
+
+/* Контейнер таблицы: отступы как у контейнера вкладки, фон непрозрачный. */
+.client-table-wrap.interactions-board__wrap {
+  flex: 1 1 auto;
+  min-height: 160px;
+  margin: 0 var(--crm-toolbar-padding-x);
+  background-color: var(--surface);
+  border: 1px solid var(--clients-surface-border);
+  border-radius: 12px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* Шапка отделена от строк тонкой линией; отступы ячеек 16/12. */
+.interactions-table.interactions-table--board thead th {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--clients-row-line);
+}
+
+.interactions-table.interactions-table--board tbody td {
+  padding: 12px 16px;
+}
+
+@media (max-width: 650px) {
+  .interactions-board__top,
+  .interactions-board__filters {
+    padding-left: var(--kanban-padding-x-narrow);
+    padding-right: var(--kanban-padding-x-narrow);
+  }
+
+  .interactions-board__top {
+    align-items: stretch;
+  }
+
+  /* Поиск переносится на следующую строку на всю ширину контейнера. */
+  .interactions-board__search {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .client-table-wrap.interactions-board__wrap {
+    margin-left: var(--kanban-padding-x-narrow);
+    margin-right: var(--kanban-padding-x-narrow);
+  }
+}
+
+/* Таблица общего раздела: те же правила переносов, что в карточке. */
+.interactions-table--board .interactions-table__col--date {
+  width: 14%;
+}
+
+.interactions-table--board .interactions-table__col--type {
+  width: 9%;
+}
+
+.interactions-table--board .interactions-table__col--title {
+  width: 22%;
+}
+
+.interactions-table--board .interactions-table__col--counterparty {
+  width: 18%;
+}
+
+.interactions-table--board .interactions-table__col--contact {
+  width: 14%;
+}
+
+.interactions-table--board .interactions-table__col--status {
+  width: 12%;
+}
+
+.interactions-table--board .interactions-table__col--responsible {
+  width: 11%;
+}
+
+/* Контрагент: ссылка на карточку и метка типа. */
+.interaction-counterparty__link {
+  display: block;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--create-button-bg);
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  cursor: pointer;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.interaction-counterparty__link:hover {
+  text-decoration: underline;
+}
+
+.interaction-counterparty__link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.interaction-counterparty__tag {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* Поле «Контрагент» в окне: тип, поиск и выпадающий список. */
+.interaction-counterparty {
+  display: grid;
+  gap: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
+.interaction-counterparty__value {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+.interaction-counterparty__options {
+  margin: 0;
+  padding: 4px;
+  list-style: none;
+  max-height: 190px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background-color: var(--surface);
+}
+
+.interaction-counterparty__option {
+  display: block;
+  width: 100%;
+  padding: 6px 8px;
+  border: none;
+  border-radius: 6px;
+  background: none;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.interaction-counterparty__option:hover,
+.interaction-counterparty__option[aria-selected='true'] {
+  background-color: var(--surface-muted, rgba(127, 127, 127, 0.12));
+}
+
+.interaction-link {
+  justify-self: start;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--create-button-bg);
+  font: inherit;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+}
