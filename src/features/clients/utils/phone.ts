@@ -23,8 +23,11 @@ export const PHONE_CODE_LENGTH: number = phoneConfig.codeLength;
 /** Допустимые коды национальной части. */
 export const PHONE_ALLOWED_CODES: readonly string[] = phoneConfig.allowedCodes;
 
+/** Маска незаполненных позиций. Длина маски совпадает с длиной значения поля. */
+const PHONE_MASK = '+375 (__) ___-__-__';
+
 /** Подсказка в пустом поле. */
-export const PHONE_PLACEHOLDER = '+375 (__) ___-__-__';
+export const PHONE_PLACEHOLDER = PHONE_MASK;
 
 /** Сообщение о недопустимом коде собирается из списка, чтобы не расходиться с ним. */
 function allowedCodesMessage(): string {
@@ -55,11 +58,14 @@ export function normalizePhoneInput(raw: string): string {
     digits = text.slice(PHONE_PREFIX.length).replace(/\D/g, '');
   } else {
     digits = text.replace(/\D/g, '');
-    if (digits.startsWith('375') && digits.length > NATIONAL_DIGITS) {
-      digits = digits.slice(3);
-    } else if (digits.startsWith('80') && digits.length > NATIONAL_DIGITS) {
-      digits = digits.slice(2);
-    }
+  }
+
+  // «+375+375291234567» (вставка при уже показанном префиксе) и «375291234567»
+  // приводятся к одному виду: код страны не входит в национальную часть.
+  if (digits.startsWith('375') && digits.length > NATIONAL_DIGITS) {
+    digits = digits.slice(3);
+  } else if (digits.startsWith('80') && digits.length > NATIONAL_DIGITS) {
+    digits = digits.slice(2);
   }
 
   return digits.slice(0, NATIONAL_DIGITS);
@@ -76,6 +82,46 @@ export function formatPhoneInput(digits: string): string {
   if (value.length > 5) result += `-${value.slice(5, 7)}`;
   if (value.length > 7) result += `-${value.slice(7, 9)}`;
   return result;
+}
+
+/**
+ * Значение поля «Телефон»: префикс `+375` показывается всегда как обычный текст,
+ * чтобы не приходилось вводить код страны. Дальше идут только введённые цифры в
+ * маске, без серых незаполненных позиций.
+ *
+ * Цифры по-прежнему хранятся отдельно от префикса, поэтому один префикс
+ * считается пустым значением.
+ */
+export function formatPhoneFieldValue(digits: string): string {
+  return digits === '' ? PHONE_PREFIX : formatPhoneInput(digits);
+}
+
+/**
+ * Недобранная часть маски для «призрачных» серых позиций: значение поля всегда
+ * совпадает с началом маски, поэтому остаток отрезается по длине значения.
+ * Рисуется серым поверх поля (см. ClientForm.css, `.client-field__phone-ghost`).
+ */
+export function formatPhoneGhostTail(digits: string): string {
+  return PHONE_MASK.slice(formatPhoneFieldValue(digits).length);
+}
+
+/**
+ * Ставит курсор в первую свободную позицию после префикса: при клике и фокусе
+ * он не должен попадать в `+375`. Если курсор уже стоит после префикса,
+ * положение не меняется — иначе нельзя было бы выделить и заменить номер.
+ * Перемещение отложено на кадр, чтобы не мешать выделению текста.
+ */
+export function movePhoneCaretAfterPrefix(input: HTMLInputElement): void {
+  const move = () => {
+    if (document.activeElement !== input) return;
+    // Выделение не трогаем: иначе нельзя выделить номер и заменить его целиком.
+    if (input.selectionStart !== input.selectionEnd) return;
+    const caret = input.selectionStart ?? 0;
+    if (caret >= PHONE_PREFIX.length) return;
+    const end = input.value.length;
+    input.setSelectionRange(end, end);
+  };
+  window.requestAnimationFrame(move);
 }
 
 /** Значение для API и базы: +375XXXXXXXXX. */

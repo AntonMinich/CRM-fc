@@ -276,7 +276,6 @@ export function EditClientModal({
             users={users}
             usersStatus={usersStatus}
             disabled={submitting}
-            phoneShowsPrefixWhenEmpty
             onRetryUsers={() => void loadUsers()}
             onOpenDuplicate={handleOpenDuplicate}
           />

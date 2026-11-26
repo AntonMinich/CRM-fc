@@ -1,0 +1,74 @@
+/* Окно поставщика: предупреждение о дубле телефона (стиль «внимание», не ошибка).
+   Цвета заданы локально, чтобы не менять общие токены проекта. */
+
+.supplier-warning {
+  --supplier-warning-border: #e0c07a;
+  --supplier-warning-bg: #fdf6e3;
+  --supplier-warning-text: #7a5a12;
+  --supplier-warning-accent: #b8860b;
+  --supplier-warning-close-hover: rgb(122 90 18 / 10%);
+
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--supplier-warning-border);
+  border-radius: var(--field-radius);
+  background-color: var(--supplier-warning-bg);
+  color: var(--supplier-warning-text);
+  font-size: 13px;
+}
+
+[data-theme='dark'] .supplier-warning {
+  --supplier-warning-border: #8a7a3a;
+  --supplier-warning-bg: #2c2a1b;
+  --supplier-warning-text: #f0e2b0;
+  --supplier-warning-accent: #d9b64a;
+  --supplier-warning-close-hover: rgb(240 226 176 / 12%);
+}
+
+.supplier-warning__icon {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background-color: var(--supplier-warning-accent);
+  color: var(--supplier-warning-bg);
+  font-weight: 700;
+  line-height: 1;
+}
+
+.supplier-warning__text {
+  flex: 1 1 auto;
+  min-width: 0;
+  line-height: 1.45;
+}
+
+/* Наименование поставщика в предупреждении — ссылка на его карточку. */
+.supplier-warning__text .client-field__link {
+  color: inherit;
+}
+
+.supplier-warning__close {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  color: inherit;
+  font-size: 18px;
+  line-height: 1;
+}
+
+.supplier-warning__close:hover {
+  background-color: var(--supplier-warning-close-hover);
+}
+
+.supplier-warning__close:focus-visible,
+.supplier-warning__text .client-field__link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}

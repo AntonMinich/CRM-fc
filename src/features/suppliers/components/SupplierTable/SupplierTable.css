@@ -1,0 +1,26 @@
+/* Пять колонок: минимальная ширина как у таблицы клиентов.
+   Остальное оформление берётся из clients/components/ClientTable/ClientTable.css. */
+
+.supplier-table {
+  min-width: 960px;
+}
+
+.supplier-table__col--name {
+  width: 24%;
+}
+
+.supplier-table__col--unp {
+  width: 12%;
+}
+
+.supplier-table__col--phone {
+  width: 18%;
+}
+
+.supplier-table__col--email {
+  width: 20%;
+}
+
+.supplier-table__col--comment {
+  width: 26%;
+}

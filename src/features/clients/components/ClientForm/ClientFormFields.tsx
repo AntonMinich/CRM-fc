@@ -13,7 +13,12 @@ import { ADDRESS_BLOCKS, ADDRESS_LIMITS } from '../../config/addressFields';
 import type { ClientFormValues, ClientTab, LoadStatus, ResponsibleUser } from '../../types';
 import { formatClientName } from '../../utils/clientDisplay';
 import { CLIENT_LIMITS } from '../../utils/validateClientForm';
-import { PHONE_PLACEHOLDER, PHONE_PREFIX, formatPhoneInput } from '../../utils/phone';
+import {
+  PHONE_PLACEHOLDER,
+  formatPhoneFieldValue,
+  formatPhoneGhostTail,
+  movePhoneCaretAfterPrefix,
+} from '../../utils/phone';
 import type { ClientFormApi } from './useClientForm';
 import './ClientForm.css';
 
@@ -56,11 +61,6 @@ interface ClientFormFieldsProps {
   usersStatus: LoadStatus;
   /** Поля отключаются на время отправки запроса. */
   disabled?: boolean;
-  /**
-   * Пустое поле телефона показывает префикс `+375`. Нужно карточке клиента для
-   * записи со старым форматом номера: маска его не распознаёт.
-   */
-  phoneShowsPrefixWhenEmpty?: boolean;
   onRetryUsers: () => void;
   /** Переход в карточку клиента с таким же телефоном (дубль номера). */
   onOpenDuplicate?: (clientId: string) => void;
@@ -72,7 +72,6 @@ export function ClientFormFields({
   users,
   usersStatus,
   disabled = false,
-  phoneShowsPrefixWhenEmpty = false,
   onRetryUsers,
   onOpenDuplicate,
 }: ClientFormFieldsProps) {
@@ -101,10 +100,10 @@ export function ClientFormFields({
     window.setTimeout(() => document.getElementById(tabId(nextTab))?.focus(), 0);
   };
 
-  const phoneValue =
-    form.values.phone === '' && phoneShowsPrefixWhenEmpty
-      ? PHONE_PREFIX
-      : formatPhoneInput(form.values.phone);
+  // Префикс +375 показывается всегда обычным текстом, дальше — введённые цифры.
+  const phoneValue = formatPhoneFieldValue(form.values.phone);
+  // Серые позиции маски: показываются «призрачным» текстом поверх поля.
+  const phoneGhostTail = formatPhoneGhostTail(form.values.phone);
 
   return (
     <div className="client-form__body">
@@ -191,24 +190,33 @@ export function ClientFormFields({
         <span className="client-field__label">
           Телефон <span className="client-field__required">*</span>
         </span>
-        <input
-          id={fieldId('phone')}
-          className="client-field__input"
-          ref={form.refs.phone}
-          type="tel"
-          inputMode="tel"
-          autoComplete="tel"
-          placeholder={PHONE_PLACEHOLDER}
-          value={phoneValue}
-          onChange={(event) => form.updatePhone(event.target.value)}
-          onBlur={form.handlePhoneBlur}
-          onKeyDown={form.handlePhoneKeyDown}
-          required
-          aria-required="true"
-          aria-invalid={Boolean(fieldError('phone'))}
-          aria-describedby={fieldError('phone') ? errorId('phone') : undefined}
-          disabled={disabled}
-        />
+        <span className="client-field__phone">
+          <input
+            id={fieldId('phone')}
+            className="client-field__input"
+            ref={form.refs.phone}
+            type="tel"
+            inputMode="tel"
+            autoComplete="tel"
+            placeholder={PHONE_PLACEHOLDER}
+            value={phoneValue}
+            onChange={(event) => form.updatePhone(event.target.value)}
+            onBlur={form.handlePhoneBlur}
+            onKeyDown={form.handlePhoneKeyDown}
+            onFocus={(event) => movePhoneCaretAfterPrefix(event.currentTarget)}
+            onClick={(event) => movePhoneCaretAfterPrefix(event.currentTarget)}
+            disabled={disabled}
+            required
+            aria-required="true"
+            aria-invalid={Boolean(fieldError('phone'))}
+            aria-describedby={fieldError('phone') ? errorId('phone') : undefined}
+          />
+          {/* Серые позиции маски: часть, совпадающая с введённым, прозрачна. */}
+          <span className="client-field__phone-ghost" aria-hidden="true">
+            <span className="client-field__phone-ghost-typed">{phoneValue}</span>
+            {phoneGhostTail}
+          </span>
+        </span>
         {fieldError('phone') ? (
           <span className="client-field__error" id={errorId('phone')}>
             {duplicate ? (

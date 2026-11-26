@@ -211,6 +211,41 @@
   border-color: var(--error-text);
 }
 
+/* Телефон: постоянный префикс +375 — обычный текст поля, а незаполненные
+   позиции маски «(__) ___-__-__» рисуются серым «призрачным» текстом поверх. */
+.client-field__phone {
+  position: relative;
+  display: block;
+}
+
+/* Поле занимает всю ширину обёртки, оформление остаётся прежним. */
+.client-field__phone .client-field__input {
+  width: 100%;
+}
+
+.client-field__phone-ghost {
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  bottom: 1px;
+  left: 1px;
+  display: flex;
+  align-items: center;
+  padding: 12px var(--field-padding-x);
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-family: inherit;
+  white-space: pre;
+  /* Клики, выделение и курсор остаются у самого поля. */
+  pointer-events: none;
+}
+
+/* Введённая часть маски прозрачна: поверх неё виден текст поля. */
+.client-field__phone-ghost-typed {
+  color: transparent;
+}
+
 /* Комментарий: многострочное поле минимум на четыре строки. */
 .client-field__textarea {
   min-height: 96px;

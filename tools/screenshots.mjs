@@ -437,15 +437,22 @@ async function checkLayout(page, engine, theme, viewport, route) {
     );
   }
 
-  // Вкладка «Поставщики»: рабочая область пуста, функциональности клиентов нет.
+  // Вкладка «Поставщики»: список и карточка по образцу раздела «Клиенты».
   if (route.name === 'crm-suppliers') {
-    check(!data.hasCreateButton, `${label} на вкладке поставщиков есть кнопка «Создать»`);
-    check(!data.clientTablePresent, `${label} на вкладке поставщиков есть таблица клиентов`);
-    check(!data.clientSearchPresent, `${label} на вкладке поставщиков есть поиск клиентов`);
+    check(data.hasCreateButton, `${label} на вкладке поставщиков нет кнопки «Создать»`);
+    check(data.clientToolbarPresent, `${label} панель действий поставщиков отсутствует`);
+    check(
+      data.clientSearchPlaceholder === 'Поиск по наименованию, УНП или телефону',
+      `${label} подсказка поиска поставщиков: ${data.clientSearchPlaceholder}`,
+    );
+    check(
+      data.clientSearchLabel === 'Поиск по наименованию, УНП или телефону',
+      `${label} доступное имя поиска поставщиков: ${data.clientSearchLabel}`,
+    );
     check(data.columnCount === 0, `${label} на вкладке поставщиков столбцов: ${data.columnCount}`);
     check(
-      data.crmViewText === '',
-      `${label} рабочая область поставщиков не пуста: "${data.crmViewText}"`,
+      data.clientStateText === 'Поставщики пока не созданы',
+      `${label} состояние пустого списка поставщиков: "${data.clientStateText}"`,
     );
   }
 
@@ -962,6 +969,17 @@ async function checkClientsFlow(browser) {
       };
     });
 
+  /**
+   * Очистка поля телефона так, как это делает пользователь: выделить всё и
+   * удалить. `page.fill('')` не подходит — в поле всегда виден префикс `+375`,
+   * а Playwright дописывает текст в конец, не заменяя значение.
+   */
+  const clearPhone = async (selector) => {
+    await page.locator(selector).selectText();
+    await page.keyboard.press('Backspace');
+    await page.waitForTimeout(80);
+  };
+
   let phone = await phoneState();
   check(
     phone.type === 'tel' && phone.inputMode === 'tel' && phone.autoComplete === 'tel',
@@ -971,7 +989,42 @@ async function checkClientsFlow(browser) {
     phone.placeholder === '+375 (__) ___-__-__',
     `[${engine} клиенты] подсказка телефона: ${phone.placeholder}`,
   );
-  check(phone.value === '', `[${engine} клиенты] поле телефона не пустое: "${phone.value}"`);
+  // Префикс +375 показывается всегда как обычный текст, а не подсказкой поля.
+  check(
+    phone.value === '+375',
+    `[${engine} клиенты] в пустом поле нет префикса: "${phone.value}"`,
+  );
+  check(
+    phone.value !== phone.placeholder,
+    `[${engine} клиенты] префикс показан подсказкой поля: "${phone.placeholder}"`,
+  );
+
+  // Backspace в пустом поле префикс не удаляет.
+  await page.click('#create-client-phone');
+  await page.keyboard.press('Backspace');
+  phone = await phoneState();
+  check(
+    phone.value === '+375',
+    `[${engine} клиенты] Backspace удалил префикс: "${phone.value}"`,
+  );
+
+  // Курсор при клике внутри префикса встаёт в первую свободную позицию после него.
+  const caret = await page.evaluate(async () => {
+    const input = document.querySelector('#create-client-phone');
+    input.focus();
+    input.setSelectionRange(1, 1);
+    input.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return {
+      start: input.selectionStart,
+      end: input.selectionEnd,
+      length: input.value.length,
+    };
+  });
+  check(
+    caret.start === caret.length && caret.end === caret.length && caret.start >= 4,
+    `[${engine} клиенты] курсор не после префикса: ${JSON.stringify(caret)}`,
+  );
 
   // Ошибка не появляется на первой цифре, но появляется после потери фокуса.
   await page.click('#create-client-phone');
@@ -989,7 +1042,8 @@ async function checkClientsFlow(browser) {
   );
 
   // Полный ввод девятью цифрами.
-  await page.fill('#create-client-phone', '');
+  // Очистка поля: в пустом поле остаётся постоянный префикс +375.
+  await clearPhone('#create-client-phone');
   await page.click('#create-client-phone');
   await page.keyboard.type('447574055');
   phone = await phoneState();
@@ -999,7 +1053,7 @@ async function checkClientsFlow(browser) {
   );
 
   // Буквы игнорируются, сверх девяти цифр ввод не принимается.
-  await page.fill('#create-client-phone', '');
+  await clearPhone('#create-client-phone');
   await page.click('#create-client-phone');
   await page.keyboard.type('a4b4c757405599');
   phone = await phoneState();
@@ -1030,6 +1084,7 @@ async function checkClientsFlow(browser) {
     ['80447574055', '+375 (44) 757-40-55'],
   ];
   for (const [input, expected] of pasteCases) {
+    await clearPhone('#create-client-phone');
     await page.fill('#create-client-phone', input);
     phone = await phoneState();
     check(phone.value === expected, `[${engine} клиенты] вставка «${input}»: "${phone.value}"`);
@@ -1045,7 +1100,7 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] сообщение о коде: "${phone.error}"`,
   );
 
-  await page.fill('#create-client-phone', '');
+  await clearPhone('#create-client-phone');
   await page.locator('#create-client-phone').blur();
   await page.waitForTimeout(120);
   phone = await phoneState();
@@ -1755,7 +1810,7 @@ async function checkClientsFlow(browser) {
   check(patches.length === 0, `[${engine} карточка] при ошибке имени отправлен запрос`);
 
   await page.fill('#edit-client-first-name', 'Иван');
-  await page.fill('#edit-client-phone', '');
+  await clearPhone('#edit-client-phone');
   await page.locator('#edit-client-phone').blur();
   await submitCard();
   await page.waitForTimeout(150);
@@ -1764,7 +1819,8 @@ async function checkClientsFlow(browser) {
     `[${engine} карточка] пустой телефон: ${await cardError('edit-client-phone-error')}`,
   );
 
-  await page.fill('#edit-client-phone', '+3754475');
+  await clearPhone('#edit-client-phone');
+  await page.keyboard.type('4475');
   await page.locator('#edit-client-phone').blur();
   await page.waitForTimeout(120);
   check(
@@ -2276,6 +2332,352 @@ async function checkCreateButton(browser, engine) {
   await context.close();
 }
 
+/** Сценарии раздела «Поставщики»: список, окно с вкладками, создание, карточка. */
+async function checkSuppliersFlow(browser) {
+  const engine = 'chromium';
+  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  const page = await context.newPage();
+  const posts = [];
+  // Ответ 409 при проверке дубля УНП ожидаем: ошибка в консоли не считается дефектом.
+  let expectingHttpError = false;
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url().includes('/api/suppliers')) {
+      posts.push(request.headers()['idempotency-key'] ?? null);
+    }
+  });
+  page.on('console', (message) => {
+    if (message.type() !== 'error') return;
+    if (expectingHttpError && message.text().includes('409')) return;
+    problems.push(`[${engine} поставщики] console: ${message.text()}`);
+  });
+  page.on('pageerror', (error) => problems.push(`[${engine} поставщики] pageerror: ${error.message}`));
+  page.on('dialog', (dialog) => void dialog.accept());
+
+  const dialog = 'dialog.client-modal--supplier';
+  /** Открытие окна; при необходимости ждём и появления полей формы. */
+  const waitOpen = async (fieldSelector) => {
+    await page.waitForFunction(
+      (selector) => document.querySelector(selector)?.open === true,
+      dialog,
+    );
+    if (fieldSelector) await page.waitForSelector(fieldSelector);
+    await page.waitForTimeout(150);
+  };
+  const waitClosed = () => page.waitForSelector(dialog, { state: 'detached' });
+  const submit = () => page.click(`${dialog} .client-form button[type="submit"]`);
+  const closeToast = async () => {
+    if ((await page.locator('.toast__close').count()) > 0) {
+      await page.click('.toast__close');
+      await page.waitForTimeout(200);
+    }
+  };
+  const activeTab = () =>
+    page.$eval(`${dialog} [role="tab"][aria-selected="true"]`, (tab) => tab.textContent.trim());
+
+  await page.goto(`${BASE_URL}/crm/suppliers`, { waitUntil: 'load' });
+  await page.waitForSelector('.client-table-state');
+  const data = await collect(page);
+  check(
+    data.clientStateText === 'Поставщики пока не созданы',
+    `[${engine} поставщики] пустой список: "${data.clientStateText}"`,
+  );
+
+  // Окно создания: вкладки, обязательные поля, реквизиты.
+  await page.click('.client-toolbar .create-button');
+  await waitOpen('#create-supplier-name');
+  check(
+    (await page.locator('#supplier-modal-title').textContent())?.trim() === 'Создание поставщика',
+    `[${engine} поставщики] заголовок окна создания`,
+  );
+  const tabs = await page.$$eval(`${dialog} [role="tab"]`, (items) =>
+    items.map((tab) => ({
+      label: tab.textContent.trim(),
+      selected: tab.getAttribute('aria-selected'),
+    })),
+  );
+  check(
+    tabs.map((tab) => tab.label).join('|') === 'Установочные данные|Реквизиты' &&
+      tabs[0]?.selected === 'true',
+    `[${engine} поставщики] вкладки окна: ${JSON.stringify(tabs)}`,
+  );
+  check(
+    await page.locator('#create-supplier-panel-details').isHidden(),
+    `[${engine} поставщики] панель реквизитов видна на первой вкладке`,
+  );
+
+  posts.length = 0;
+  await submit();
+  await page.waitForTimeout(200);
+  check(
+    (await page.locator('#create-supplier-name-error').textContent())?.trim() ===
+      'Укажите наименование компании',
+    `[${engine} поставщики] сообщение по наименованию`,
+  );
+  check(posts.length === 0, `[${engine} поставщики] при ошибке отправлен запрос`);
+
+  await page.fill('#create-supplier-name', '  ООО Ромашка  ');
+  await page.fill('#create-supplier-unp', '191234567');
+  await page.fill('#create-supplier-phone', '+375447574011');
+  await page.fill('#create-supplier-email', 'romashka@example.com');
+  await page.fill('#create-supplier-comment', 'Первый поставщик: работаем по договору');
+  await page.click('#create-supplier-tab-details');
+  await page.waitForTimeout(200);
+  await page.fill('#create-supplier-reg-city', 'Минск');
+  const details = await page.evaluate((selector) => {
+    const panel = document.querySelector(`${selector} #create-supplier-panel-details`);
+    const checkbox = panel?.querySelector('.client-address__same');
+    return {
+      blocks: panel ? panel.querySelectorAll('.client-address').length : 0,
+      dividers: panel ? panel.querySelectorAll('.client-address__divider').length : 0,
+      checkbox: checkbox?.textContent?.trim() ?? null,
+    };
+  }, dialog);
+  check(
+    details.blocks === 3 &&
+      details.dividers === 2 &&
+      details.checkbox === 'Совпадает с адресом регистрации',
+    `[${engine} поставщики] блоки реквизитов: ${JSON.stringify(details)}`,
+  );
+
+  posts.length = 0;
+  await submit();
+  await waitClosed();
+  await page.waitForSelector('.toast__message');
+  check(
+    (await page.locator('.toast__message .toast__text').textContent())?.trim() ===
+      'Поставщик создан',
+    `[${engine} поставщики] уведомление о создании`,
+  );
+  check(posts.length === 1, `[${engine} поставщики] запросов на создание: ${posts.length}`);
+  await page.waitForFunction(() => document.querySelectorAll('.supplier-table tbody tr').length === 1);
+  const headers = await page.$$eval('.supplier-table thead th', (cells) =>
+    cells.map((cell) => cell.textContent.trim()),
+  );
+  check(
+    headers.join('|') === 'Наименование компании|УНП|Телефон|E-mail|Комментарий',
+    `[${engine} поставщики] заголовки таблицы: ${headers.join('|')}`,
+  );
+  const rowCells = () =>
+    page.$$eval('.supplier-table tbody tr', (rows) =>
+      rows.map((row) => Array.from(row.children).map((cell) => cell.textContent.trim())),
+    );
+  const cells = await rowCells();
+  check(
+    (cells[0] ?? []).join('|') ===
+      [
+        'ООО Ромашка',
+        '191234567',
+        '+375 (44) 757-40-11',
+        'romashka@example.com',
+        'Первый поставщик: работаем по договору',
+      ].join('|'),
+    `[${engine} поставщики] первая строка: ${(cells[0] ?? []).join(' | ')}`,
+  );
+  await closeToast();
+
+  // Карточка: открытие строкой, вкладки, обязательные поля, сохранение.
+  await page.click('.supplier-table tbody .client-row-open');
+  await waitOpen('#edit-supplier-name');
+  check(
+    (await page.locator('#supplier-modal-title').textContent())?.trim() === 'Карточка поставщика',
+    `[${engine} поставщики] заголовок карточки`,
+  );
+  check(
+    (await page.inputValue('#edit-supplier-name')) === 'ООО Ромашка' &&
+      (await page.inputValue('#edit-supplier-unp')) === '191234567' &&
+      (await page.inputValue('#edit-supplier-phone')) === '+375 (44) 757-40-11',
+    `[${engine} поставщики] поля карточки не заполнены сохранёнными значениями`,
+  );
+  await page.click('#edit-supplier-tab-details');
+  await page.waitForTimeout(200);
+  check(
+    (await page.inputValue('#edit-supplier-reg-city')) === 'Минск',
+    `[${engine} поставщики] реквизиты не читаются из базы`,
+  );
+
+  // Ошибка обязательного поля возвращает на первую вкладку и ставит фокус.
+  await page.click('#edit-supplier-tab-main');
+  await page.waitForTimeout(150);
+  await page.fill('#edit-supplier-name', '   ');
+  await page.click('#edit-supplier-tab-details');
+  await page.waitForTimeout(150);
+  await submit();
+  await page.waitForTimeout(300);
+  check(
+    (await activeTab()) === 'Установочные данные',
+    `[${engine} поставщики] окно осталось на «Реквизитах»: ${await activeTab()}`,
+  );
+  check(
+    (await page.evaluate(() => document.activeElement?.id)) === 'edit-supplier-name',
+    `[${engine} поставщики] фокус не переведён на поле с ошибкой`,
+  );
+
+  await page.fill('#edit-supplier-name', 'ООО Ромашка плюс');
+  await submit();
+  await waitClosed();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('.supplier-table tbody .client-row-open')?.textContent?.trim() ===
+      'ООО Ромашка плюс',
+  );
+  check(true, `[${engine} поставщики] строка обновлена после сохранения`);
+  await closeToast();
+
+  // УНП: ввод только цифр, не больше девяти знаков.
+  posts.length = 0;
+  await page.click('.client-toolbar .create-button');
+  await waitOpen('#create-supplier-name');
+  await page.fill('#create-supplier-name', 'ООО Дубль');
+  await page.fill('#create-supplier-unp', 'abc123456789');
+  check(
+    (await page.inputValue('#create-supplier-unp')) === '123456',
+    `[${engine} поставщики] буквы в УНП не отфильтрованы: "${await page.inputValue('#create-supplier-unp')}"`,
+  );
+  await page.fill('#create-supplier-unp', '1234567890123');
+  check(
+    (await page.inputValue('#create-supplier-unp')) === '123456789',
+    `[${engine} поставщики] длина УНП не ограничена: "${await page.inputValue('#create-supplier-unp')}"`,
+  );
+
+  // Дубль УНП: сообщение появляется сразу при вводе, до отправки.
+  await page.fill('#create-supplier-unp', '191234567');
+  await page.fill('#create-supplier-phone', '+375447574099');
+  await page.waitForSelector('#create-supplier-unp-error');
+  const liveUnp = await page.evaluate(() => {
+    const error = document.querySelector('#create-supplier-unp-error');
+    return {
+      text: error?.textContent?.trim() ?? null,
+      link: error?.querySelector('.client-field__link')?.textContent?.trim() ?? null,
+    };
+  });
+  check(
+    liveUnp.text === 'Поставщик с таким УНП уже создан: ООО Ромашка плюс' &&
+      liveUnp.link === 'ООО Ромашка плюс',
+    `[${engine} поставщики] живая подсказка о дубле УНП: "${liveUnp.text}"`,
+  );
+  check(posts.length === 0, `[${engine} поставщики] живая проверка УНП отправила запрос на создание`);
+
+  // Сохранение с дублем УНП блокирует сервер.
+  expectingHttpError = true;
+  await submit();
+  await page.waitForTimeout(300);
+  expectingHttpError = false;
+  const unpDuplicate = await page.evaluate(() => {
+    const error = document.querySelector('#create-supplier-unp-error');
+    return {
+      text: error?.textContent?.trim() ?? null,
+      link: error?.querySelector('.client-field__link')?.textContent?.trim() ?? null,
+      invalid: document.querySelector('#create-supplier-unp')?.getAttribute('aria-invalid'),
+    };
+  });
+  check(
+    unpDuplicate.text === 'Поставщик с таким УНП уже создан: ООО Ромашка плюс',
+    `[${engine} поставщики] сообщение о дубле УНП: "${unpDuplicate.text}"`,
+  );
+  check(
+    unpDuplicate.invalid === 'true' && unpDuplicate.link === 'ООО Ромашка плюс',
+    `[${engine} поставщики] нет ссылки на поставщика с таким УНП`,
+  );
+  check(posts.length === 1, `[${engine} поставщики] при дубле УНП отправлено запросов: ${posts.length}`);
+
+  // Ссылка открывает карточку найденного поставщика.
+  await page.click('#create-supplier-unp-error .client-field__link');
+  await waitOpen('#edit-supplier-name');
+  check(
+    (await page.inputValue('#edit-supplier-name')) === 'ООО Ромашка плюс',
+    `[${engine} поставщики] переход в карточку поставщика с таким УНП`,
+  );
+  await page.keyboard.press('Escape');
+  await waitClosed();
+  await closeToast();
+
+  // Дубль телефона: предупреждение появляется сразу при вводе, сохранение проходит.
+  posts.length = 0;
+  await page.click('.client-toolbar .create-button');
+  await waitOpen('#create-supplier-name');
+  await page.fill('#create-supplier-name', 'ООО Дубль');
+  await page.fill('#create-supplier-unp', '291234567');
+  await page.fill('#create-supplier-phone', '+375447574011');
+  await page.waitForSelector('.supplier-warning');
+  const livePhone = await page.evaluate(() => {
+    const block = document.querySelector('.supplier-warning');
+    return {
+      text: block?.querySelector('.supplier-warning__text')?.textContent?.trim() ?? null,
+      link: block?.querySelector('.client-field__link')?.textContent?.trim() ?? null,
+    };
+  });
+  check(
+    livePhone.text === 'Поставщик с таким телефоном уже есть: ООО Ромашка плюс' &&
+      livePhone.link === 'ООО Ромашка плюс',
+    `[${engine} поставщики] живая подсказка о дубле телефона: "${livePhone.text}"`,
+  );
+  check(
+    posts.length === 0,
+    `[${engine} поставщики] живая проверка телефона отправила запрос на создание`,
+  );
+
+  const longComment = 'Очень длинный комментарий поставщика для проверки обрезки в таблице списка';
+  await page.fill('#create-supplier-comment', longComment);
+  await submit();
+  await page.waitForFunction(() => document.querySelectorAll('.supplier-table tbody tr').length === 2);
+  await page.waitForSelector('.supplier-warning');
+  const warning = await page.evaluate(() => {
+    const block = document.querySelector('.supplier-warning');
+    return {
+      text: block?.querySelector('.supplier-warning__text')?.textContent?.trim() ?? null,
+      link: block?.querySelector('.client-field__link')?.textContent?.trim() ?? null,
+      close: block?.querySelector('.supplier-warning__close') !== null,
+    };
+  });
+  check(
+    warning.text === 'Поставщик с таким телефоном уже есть: ООО Ромашка плюс',
+    `[${engine} поставщики] предупреждение о дубле телефона: "${warning.text}"`,
+  );
+  check(
+    warning.link === 'ООО Ромашка плюс' && warning.close,
+    `[${engine} поставщики] в предупреждении нет ссылки или крестика`,
+  );
+  check(posts.length === 1, `[${engine} поставщики] запросов на создание: ${posts.length}`);
+  await page.waitForFunction(() => document.querySelectorAll('.supplier-table tbody tr').length === 2);
+  check(true, `[${engine} поставщики] запись с дублем телефона сохранена`);
+  check(
+    (await rowCells())[0]?.[4] === `${longComment.slice(0, 50)}…`,
+    `[${engine} поставщики] комментарий в таблице: ${(await rowCells())[0]?.[4]}`,
+  );
+
+  // Крестик закрывает предупреждение, окно остаётся открытым.
+  await page.click('.supplier-warning__close');
+  await page.waitForTimeout(200);
+  check(
+    (await page.locator('.supplier-warning').count()) === 0 &&
+      (await page.locator(dialog).count()) === 1,
+    `[${engine} поставщики] крестик не закрыл предупреждение`,
+  );
+  await page.keyboard.press('Escape');
+  await waitClosed();
+  await closeToast();
+
+  // Поиск: наименование, УНП и телефон.
+  const rowCount = () => page.$$eval('.supplier-table tbody tr', (items) => items.length);
+  await page.fill('.client-search', 'РОМАШ');
+  await page.waitForTimeout(700);
+  check((await rowCount()) === 1, `[${engine} поставщики] поиск по наименованию: строк ${await rowCount()}`);
+
+  await page.fill('.client-search', '291234');
+  await page.waitForTimeout(700);
+  check((await rowCount()) === 1, `[${engine} поставщики] поиск по УНП: строк ${await rowCount()}`);
+
+  await page.fill('.client-search', '+375 (44) 757-40-11');
+  await page.waitForTimeout(700);
+  check((await rowCount()) === 2, `[${engine} поставщики] поиск по телефону: строк ${await rowCount()}`);
+
+  await page.fill('.client-search', '');
+  await page.waitForTimeout(700);
+  check((await rowCount()) === 2, `[${engine} поставщики] очистка поиска: строк ${await rowCount()}`);
+
+  await context.close();
+}
+
 async function main() {
   mkdirSync(OUT_DIR, { recursive: true });
 
@@ -2304,6 +2706,9 @@ async function main() {
               }
             });
             page.on('pageerror', (error) => {
+              // WebKit сообщает прерванный запрос списка (отмена при уходе со
+              // страницы) как ошибку доступа: сами данные при этом загружаются.
+              if (error.message.includes('due to access control checks')) return;
               problems.push(
                 `[${engine.name} ${theme} ${viewport.name}] pageerror: ${error.message}`,
               );
@@ -2343,6 +2748,7 @@ async function main() {
     const flowBrowser = await chromium.launch();
     try {
       await checkClientsFlow(flowBrowser);
+      await checkSuppliersFlow(flowBrowser);
     } finally {
       await flowBrowser.close();
     }

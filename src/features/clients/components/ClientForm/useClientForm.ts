@@ -13,7 +13,7 @@ import type { DuplicateClient } from '../../api/clientsApi';
 import { ADDRESS_PAIRS, isResidenceSameAsRegistration } from '../../config/addressFields';
 import { useDebouncedValue } from '../../hooks/useDebouncedValue';
 import type { ClientFormErrors, ClientFormValues, ClientTab } from '../../types';
-import { normalizePhoneInput, toPhoneValue, validatePhone } from '../../utils/phone';
+import { PHONE_PREFIX, normalizePhoneInput, toPhoneValue, validatePhone } from '../../utils/phone';
 import { EMPTY_CLIENT_FORM, tabForField } from '../../utils/validateClientForm';
 
 /** Сообщение под полем телефона, если номер уже занят другим клиентом. */
@@ -94,7 +94,7 @@ export function useClientForm(
   const [activeTab, setActiveTab] = useState<ClientTab>('main');
   const [sameAddress, setSameAddress] = useState(false);
   /** Живую проверку запускаем только после того, как номер правил пользователь. */
-  const phoneTouchedRef = useRef(false);
+  const [phoneTouched, setPhoneTouched] = useState(false);
 
   // Обработчики читают актуальные значения через ссылки и не пересоздаются при вводе.
   const valuesRef = useRef(values);
@@ -154,7 +154,7 @@ export function useClientForm(
     (raw: string) => {
       const digits = normalizePhoneInput(raw);
       // Сообщение о дубле исчезает, как только значение телефона меняют.
-      phoneTouchedRef.current = true;
+      setPhoneTouched(true);
       setPhoneDuplicate(null);
       setValues((previous) => ({ ...previous, phone: digits }));
       if (errorsRef.current.phone) {
@@ -170,10 +170,25 @@ export function useClientForm(
 
   const handlePhoneKeyDown = useCallback(
     (event: KeyboardEvent<HTMLInputElement>) => {
-      if (event.key !== 'Backspace') return;
       const input = event.currentTarget;
+      const caret = input.selectionStart ?? 0;
+
+      // Префикс +375 не удаляется: Delete внутри него ничего не делает.
+      // При выделении Delete удаляет выбранное, а префикс восстанавливает форма.
+      if (event.key === 'Delete') {
+        if (input.selectionStart === input.selectionEnd && caret < PHONE_PREFIX.length) {
+          event.preventDefault();
+        }
+        return;
+      }
+      if (event.key !== 'Backspace') return;
       if (input.selectionStart !== input.selectionEnd) return;
-      if (valuesRef.current.phone === '') return;
+
+      if (valuesRef.current.phone === '') {
+        // В поле только префикс: стирать нечего, но и его удалять нельзя.
+        if (caret <= PHONE_PREFIX.length) event.preventDefault();
+        return;
+      }
 
       event.preventDefault();
       const digits = valuesRef.current.phone.slice(0, -1);
@@ -190,6 +205,7 @@ export function useClientForm(
     setValues(next);
     setSameAddress(isResidenceSameAsRegistration(next));
     setActiveTab('main');
+    setPhoneTouched(false);
   }, []);
 
   /** Чекбокс «Совпадает с адресом регистрации»: копируем адрес или очищаем его. */
@@ -234,7 +250,7 @@ export function useClientForm(
    */
   const debouncedPhone = useDebouncedValue(values.phone, PHONE_CHECK_DELAY_MS);
   useEffect(() => {
-    if (!phoneTouchedRef.current) return;
+    if (!phoneTouched) return;
     const digits = debouncedPhone;
     if (digits === '' || validatePhone(digits) !== null) return;
 
@@ -268,7 +284,7 @@ export function useClientForm(
     })();
 
     return () => controller.abort();
-  }, [debouncedPhone, excludeClientId, setPhoneError]);
+  }, [debouncedPhone, excludeClientId, phoneTouched, setPhoneError]);
 
   return {
     values,

@@ -9,6 +9,12 @@
  *   GET   /api/clients/phone-check?phone=...&excludeId=...
  *   GET   /api/clients/{id}
  *   PATCH /api/clients/{id}
+ *   GET   /api/suppliers?search=...&page=1&pageSize=50
+ *   POST  /api/suppliers
+ *   GET   /api/suppliers/unp-check?unp=...&excludeId=...
+ *   GET   /api/suppliers/phone-check?phone=...&excludeId=...
+ *   GET   /api/suppliers/{id}
+ *   PATCH /api/suppliers/{id}
  *
  * Значения `id`, `created_at`, `updated_at` задаёт сервер; клиент их не передаёт.
  * Внутренние ошибки базы наружу не выводятся.
@@ -27,6 +33,18 @@ import {
   updateClient,
 } from './repository.mjs';
 import { filterClients, paginate, parseQuery } from './search.mjs';
+import {
+  createSupplier,
+  findCreationRequest as findSupplierCreationRequest,
+  findSupplierByUnp,
+  findSuppliersByPhone,
+  findUpdateRequest as findSupplierUpdateRequest,
+  getSupplierById,
+  listAllSuppliers,
+  updateSupplier,
+} from './suppliersRepository.mjs';
+import { filterSuppliers, parseSupplierQuery } from './suppliersSearch.mjs';
+import { validateSupplierPayload } from './suppliersValidation.mjs';
 import { validateClientPayload } from './validation.mjs';
 
 /** Ограничение размера тела запроса. */
@@ -34,6 +52,9 @@ const MAX_BODY_BYTES = 64 * 1024;
 
 /** Путь карточки клиента: /api/clients/{id}. */
 const CLIENT_ITEM_PATTERN = /^\/api\/clients\/([^/]+)$/;
+
+/** Путь карточки поставщика: /api/suppliers/{id}. */
+const SUPPLIER_ITEM_PATTERN = /^\/api\/suppliers\/([^/]+)$/;
 
 
 /** Ошибка с HTTP-статусом, ошибками полей и дополнительными данными ответа. */
@@ -221,6 +242,134 @@ async function handleUpdateClient(req, res, id) {
 }
 
 /**
+ * Дубль УНП у поставщика: 409 с кодом `duplicate_unp` и наименованием найденной
+ * записи. Возвращаются только идентификатор и наименование.
+ */
+function duplicateSupplierUnpError(duplicate) {
+  return new HttpError(409, 'Поставщик с таким УНП уже создан', null, {
+    code: 'duplicate_unp',
+    supplier: { id: duplicate.id, name: duplicate.name },
+  });
+}
+
+/**
+ * Успешный ответ по поставщику: если найдены другие поставщики с таким же
+ * телефоном, к объекту добавляется поле `duplicate_phone_with`
+ * (до трёх наименований и общее количество). Сохранение при этом не блокируется.
+ */
+function sendSupplier(res, status, result) {
+  const payload = result.duplicatePhoneWith
+    ? { ...result.supplier, duplicate_phone_with: result.duplicatePhoneWith }
+    : result.supplier;
+  sendJson(res, status, payload);
+}
+
+function handleListSuppliers(url, res) {
+  const query = parseSupplierQuery(url.searchParams.get('search') ?? '');
+  const page = Number.parseInt(url.searchParams.get('page') ?? '1', 10);
+  const pageSize = Number.parseInt(url.searchParams.get('pageSize') ?? '50', 10);
+
+  // Поиск по наименованию применяется ко всему набору, затем пагинация.
+  const matched = filterSuppliers(listAllSuppliers(), query);
+  sendJson(res, 200, paginate(matched, page, pageSize));
+}
+
+async function handleCreateSupplier(req, res) {
+  const body = await readJsonBody(req);
+  const idempotencyKey = readIdempotencyKey(req, body);
+
+  // Повтор того же запроса возвращает ранее созданную запись без новой вставки.
+  if (idempotencyKey) {
+    const existing = findSupplierCreationRequest(idempotencyKey);
+    if (existing) {
+      sendJson(res, 201, JSON.parse(existing.response_json), { 'Idempotent-Replay': 'true' });
+      return;
+    }
+  }
+
+  const validation = validateSupplierPayload(body);
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+
+  const result = createSupplier(validation.data, idempotencyKey);
+  if (result.status === 'duplicate_unp') {
+    throw duplicateSupplierUnpError(result.duplicate);
+  }
+  sendSupplier(res, 201, result);
+}
+
+/** Карточка поставщика для формы редактирования. */
+function handleGetSupplier(id, res) {
+  const supplier = getSupplierById(id);
+  if (!supplier) {
+    throw new HttpError(404, 'Поставщик не найден');
+  }
+  sendJson(res, 200, supplier);
+}
+
+async function handleUpdateSupplier(req, res, id) {
+  const body = await readJsonBody(req);
+  const idempotencyKey = readIdempotencyKey(req, body);
+
+  // Повтор того же запроса не выполняет обновление второй раз.
+  if (idempotencyKey) {
+    const existing = findSupplierUpdateRequest(idempotencyKey);
+    if (existing) {
+      sendJson(res, 200, JSON.parse(existing.response_json), { 'Idempotent-Replay': 'true' });
+      return;
+    }
+  }
+
+  const validation = validateSupplierPayload(body);
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+
+  // Без значения updated_at нельзя отличить актуальную карточку от устаревшей.
+  const expectedRaw = body.expected_updated_at;
+  const expectedUpdatedAt = typeof expectedRaw === 'string' ? expectedRaw.trim() : '';
+  if (expectedUpdatedAt === '') {
+    throw new HttpError(422, 'Не передано значение updated_at');
+  }
+
+  const result = updateSupplier(id, validation.data, { idempotencyKey, expectedUpdatedAt });
+
+  if (result.status === 'not_found') {
+    throw new HttpError(404, 'Поставщик не найден');
+  }
+  if (result.status === 'conflict') {
+    throw new HttpError(409, 'Карточка была изменена другим пользователем. Обновите данные.');
+  }
+  if (result.status === 'duplicate_unp') {
+    throw duplicateSupplierUnpError(result.duplicate);
+  }
+
+  sendSupplier(res, 200, result);
+}
+
+/** Идентификатор записи, которую исключают из проверки дубля. */
+function readExcludeId(url) {
+  const raw = url.searchParams.get('excludeId') ?? '';
+  return raw.trim() === '' ? null : raw.trim();
+}
+
+/** Живая проверка УНП: есть ли другой поставщик с таким же УНП. */
+function handleSupplierUnpCheck(url, res) {
+  const unp = url.searchParams.get('unp') ?? '';
+  sendJson(res, 200, { duplicate: findSupplierByUnp(unp, readExcludeId(url)) });
+}
+
+/**
+ * Живая проверка телефона: другие поставщики с таким же номером.
+ * Сохранение они не блокируют, о них сообщают в форме и в ответе сохранения.
+ */
+function handleSupplierPhoneCheck(url, res) {
+  const phone = url.searchParams.get('phone') ?? '';
+  sendJson(res, 200, { duplicates: findSuppliersByPhone(phone, readExcludeId(url)) });
+}
+
+/**
  * Обрабатывает запрос к API.
  * @returns {Promise<boolean>} true, если запрос относится к API
  */
@@ -261,6 +410,37 @@ export async function handleApiRequest(req, res, url) {
       }
       if (req.method === 'PATCH') {
         await handleUpdateClient(req, res, id);
+        return true;
+      }
+    }
+
+    if (pathname === '/api/suppliers' && req.method === 'GET') {
+      handleListSuppliers(url, res);
+      return true;
+    }
+    if (pathname === '/api/suppliers' && req.method === 'POST') {
+      await handleCreateSupplier(req, res);
+      return true;
+    }
+    // Проверки дублей регистрируются до шаблона /api/suppliers/{id}.
+    if (pathname === '/api/suppliers/unp-check' && req.method === 'GET') {
+      handleSupplierUnpCheck(url, res);
+      return true;
+    }
+    if (pathname === '/api/suppliers/phone-check' && req.method === 'GET') {
+      handleSupplierPhoneCheck(url, res);
+      return true;
+    }
+
+    const supplierMatch = SUPPLIER_ITEM_PATTERN.exec(pathname);
+    if (supplierMatch) {
+      const id = decodeURIComponent(supplierMatch[1]);
+      if (req.method === 'GET') {
+        handleGetSupplier(id, res);
+        return true;
+      }
+      if (req.method === 'PATCH') {
+        await handleUpdateSupplier(req, res, id);
         return true;
       }
     }
