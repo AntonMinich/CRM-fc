@@ -42,6 +42,17 @@
   color: var(--toast-accent);
 }
 
+/* Сообщение об ошибке (например, «Клиент не найден»): тот же вид, красный акцент. */
+.toast__message--error {
+  border-color: var(--toast-error-border);
+  border-left-color: var(--toast-error-accent);
+}
+
+.toast__message--error .toast__icon {
+  background-color: var(--toast-error-icon-bg);
+  color: var(--toast-error-accent);
+}
+
 .toast__text {
   flex: 1 1 auto;
   min-width: 0;

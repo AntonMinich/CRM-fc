@@ -1,4 +1,10 @@
-import { formatClientEmail, formatClientName, formatClientPhone } from '../../utils/clientDisplay';
+import {
+  clientOpenLabel,
+  formatClientComment,
+  formatClientEmail,
+  formatClientName,
+  formatClientPhone,
+} from '../../utils/clientDisplay';
 import type { Client, LoadStatus } from '../../types';
 import './ClientTable.css';
 
@@ -11,6 +17,11 @@ interface ClientTableProps {
   loadingMore: boolean;
   onRetry: () => void;
   onLoadMore: () => void;
+  /**
+   * Открытие карточки клиента. Второй аргумент — кнопка строки: на неё
+   * возвращается фокус после закрытия окна.
+   */
+  onOpenClient: (client: Client, trigger: HTMLButtonElement) => void;
 }
 
 /** Таблица клиентов и её состояния: загрузка, пусто, нет совпадений, ошибка. */
@@ -22,6 +33,7 @@ export function ClientTable({
   loadingMore,
   onRetry,
   onLoadMore,
+  onOpenClient,
 }: ClientTableProps) {
   if (status === 'loading') {
     return (
@@ -66,6 +78,7 @@ export function ClientTable({
             <col className="client-table__col client-table__col--phone" />
             <col className="client-table__col client-table__col--email" />
             <col className="client-table__col client-table__col--responsible" />
+            <col className="client-table__col client-table__col--comment" />
           </colgroup>
           <thead>
             <tr>
@@ -73,15 +86,40 @@ export function ClientTable({
               <th scope="col">Телефон</th>
               <th scope="col">E-mail</th>
               <th scope="col">Ответственный</th>
+              <th scope="col">Комментарий</th>
             </tr>
           </thead>
           <tbody>
             {items.map((client) => (
-              <tr key={client.id}>
-                <td>{formatClientName(client)}</td>
+              <tr
+                key={client.id}
+                className="client-table__row"
+                onClick={(event) => {
+                  // Клик по любой ячейке строки открывает карточку.
+                  const trigger = event.currentTarget.querySelector<HTMLButtonElement>(
+                    '.client-row-open',
+                  );
+                  if (trigger) onOpenClient(client, trigger);
+                }}
+              >
+                <td>
+                  {/* ФИО — кнопка: строка открывается с клавиатуры по Enter и Space. */}
+                  <button
+                    type="button"
+                    className="client-row-open"
+                    aria-label={clientOpenLabel(client)}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onOpenClient(client, event.currentTarget);
+                    }}
+                  >
+                    {formatClientName(client)}
+                  </button>
+                </td>
                 <td>{formatClientPhone(client)}</td>
                 <td>{formatClientEmail(client)}</td>
                 <td>{client.responsibleFullName}</td>
+                <td>{formatClientComment(client)}</td>
               </tr>
             ))}
           </tbody>

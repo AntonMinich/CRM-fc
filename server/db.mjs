@@ -14,6 +14,14 @@ import { DatabaseSync } from 'node:sqlite';
 const SERVER_DIR = dirname(fileURLToPath(import.meta.url));
 const MIGRATIONS_DIR = join(SERVER_DIR, 'migrations');
 
+/**
+ * Пометка в файле миграции: неудачу такой миграции не считаем критичной.
+ * Нужна для миграций, которые нельзя применить из-за уже существующих данных
+ * (например, уникальный индекс при наличии дублей): сервер продолжает работать,
+ * данные не изменяются, миграция повторится при следующем запуске.
+ */
+const TOLERATE_MARKER = '-- fincode: tolerate-existing-data';
+
 /** Путь к файлу базы по умолчанию. */
 export const DEFAULT_DB_PATH = join(SERVER_DIR, '..', 'data', 'fincode.db');
 
@@ -75,6 +83,12 @@ export function runMigrations() {
       executed.push(file);
     } catch (error) {
       db.exec('ROLLBACK');
+      if (sql.includes(TOLERATE_MARKER)) {
+        console.warn(
+          `[db] миграция ${file} не применена (${error.message}); данные не изменены.`,
+        );
+        continue;
+      }
       throw new Error(`Миграция ${file} не применена: ${error.message}`);
     }
   }

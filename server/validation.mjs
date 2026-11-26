@@ -10,10 +10,36 @@ export const LIMITS = {
   namePart: 100,
   phone: 50,
   email: 254,
+  comment: 500,
 };
 
 /** Формат проверки E-mail. Совпадает с клиентской проверкой. */
 export const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+/**
+ * Реквизиты клиента: адресные поля и их лимиты длины. Ключи совпадают с колонками
+ * таблицы «Клиенты», поэтому список используется и в запросах к базе.
+ * Обязательных адресных полей нет — проверяется только длина.
+ */
+export const ADDRESS_LIMITS = {
+  reg_postal_code: 20,
+  reg_country: 100,
+  reg_city: 100,
+  reg_street: 150,
+  reg_house: 20,
+  reg_building: 20,
+  reg_apartment: 20,
+  res_postal_code: 20,
+  res_country: 100,
+  res_city: 100,
+  res_street: 150,
+  res_house: 20,
+  res_building: 20,
+  res_apartment: 20,
+};
+
+/** Имена адресных колонок в порядке объявления. */
+export const ADDRESS_COLUMNS = Object.keys(ADDRESS_LIMITS);
 
 /** Сообщения об ошибках полей — из раздела 7 ТЗ. */
 export const FIELD_ERROR_MESSAGES = {
@@ -21,6 +47,7 @@ export const FIELD_ERROR_MESSAGES = {
   phone: 'Укажите телефон',
   responsible_user_id: 'Выберите ответственного',
   email: 'Укажите корректный E-mail',
+  comment: 'Комментарий не должен превышать 500 символов',
 };
 
 function asText(value) {
@@ -91,6 +118,25 @@ export function validateClientPayload(payload, deps) {
     fieldErrors.responsible_user_id = FIELD_ERROR_MESSAGES.responsible_user_id;
   }
 
+  // Комментарий необязателен: внешние пробелы и переводы строк по краям убираются,
+  // пустое значение сохраняется как NULL. Переводы строк внутри допустимы и
+  // считаются по одному символу.
+  const comment = optionalText(body.comment);
+  if (comment.error || (comment.value && comment.value.length > LIMITS.comment)) {
+    fieldErrors.comment = FIELD_ERROR_MESSAGES.comment;
+  }
+
+  // Реквизиты: необязательные адресные поля, проверяется только длина.
+  const address = {};
+  for (const [field, limit] of Object.entries(ADDRESS_LIMITS)) {
+    const value = optionalText(body[field]);
+    if (value.error || (value.value && value.value.length > limit)) {
+      fieldErrors[field] = `Не более ${limit} символов`;
+    } else {
+      address[field] = value.value;
+    }
+  }
+
   if (Object.keys(fieldErrors).length > 0) {
     return { ok: false, fieldErrors };
   }
@@ -104,6 +150,8 @@ export function validateClientPayload(payload, deps) {
       phone: phone.value,
       email: email.value,
       responsible_user_id: responsibleId,
+      comment: comment.value,
+      ...address,
     },
   };
 }

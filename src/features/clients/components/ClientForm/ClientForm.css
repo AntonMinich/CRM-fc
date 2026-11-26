@@ -1,0 +1,356 @@
+/* Оформление окна клиента и его формы (раздел 12 ТЗ, раздел 10 ТЗ на
+   редактирование). Файл общий для окна создания и карточки клиента. */
+
+.client-modal {
+  width: var(--modal-width);
+  max-width: var(--modal-max-width);
+  max-height: var(--modal-max-height);
+  padding: var(--modal-padding);
+  border: 1px solid var(--border);
+  border-radius: var(--modal-radius);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  overflow: auto;
+  box-shadow: 0 24px 100px rgb(4 11 28 / 28%);
+}
+
+.client-modal::backdrop {
+  background: var(--modal-backdrop);
+  backdrop-filter: blur(2px);
+}
+
+.client-modal__title {
+  margin: 0 0 26px;
+  font-size: 23px;
+  font-weight: 600;
+}
+
+.client-modal__close {
+  position: absolute;
+  right: 23px;
+  top: 20px;
+  color: var(--text-muted);
+  font-size: 26px;
+  line-height: 1;
+}
+
+.client-modal__close:hover {
+  color: var(--text-primary);
+}
+
+.client-modal__close:disabled {
+  color: var(--border);
+  cursor: default;
+}
+
+/* Состояния карточки: загрузка и ошибка получения клиента. */
+.client-modal__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 0;
+  padding: 40px 20px;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.client-modal__state--error {
+  flex-direction: column;
+}
+
+.client-modal__state-text {
+  margin: 0;
+}
+
+.client-form__fields {
+  display: grid;
+  gap: 18px;
+}
+
+/* Скрытая вкладка не должна перебивать display: grid панели. */
+.client-form__fields[hidden] {
+  display: none;
+}
+
+/* Вкладки окна: оформление как у верхнего меню CRM, работает в обеих темах. */
+.client-tabs {
+  display: flex;
+  gap: var(--crm-tabs-gap);
+  margin-bottom: 22px;
+  border-bottom: 1px solid var(--border);
+}
+
+.client-tab {
+  padding: 8px 0 11px;
+  border: none;
+  border-bottom: var(--crm-tab-underline) solid transparent;
+  background: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: var(--crm-tab-font-size);
+  cursor: pointer;
+}
+
+.client-tab--active {
+  border-bottom-color: var(--crm-tab-accent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.client-tab:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Реквизиты: два блока адресов. */
+.client-address {
+  margin: 0;
+  padding: 0;
+  border: none;
+}
+
+/* Линия между блоками адресов: отдельный элемент над заголовком следующего
+   блока. Отступы сверху и снизу задаёт gap панели (18 px). */
+.client-address__divider {
+  height: 1px;
+  background-color: var(--border);
+}
+
+/* Чекбокс «Совпадает с адресом регистрации»: отдельная строка под заголовком. */
+.client-address__same {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 400;
+  cursor: pointer;
+}
+
+.client-address__same-input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--crm-tab-accent);
+  cursor: pointer;
+}
+
+.client-address__same-input:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Поля скопированного адреса отличаются от доступных для правки. */
+.client-address__field--locked .client-field__input {
+  background-color: var(--nav-hover-bg);
+}
+
+.client-address__title {
+  padding: 0;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.client-address__grid {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 18px var(--field-padding-x);
+}
+
+/* Индекс и Страна — половина строки, Населённый пункт и Улица — вся строка,
+   Дом, Корпус и Квартира — по трети строки. */
+.client-address__field--span-3 {
+  grid-column: span 3;
+}
+
+.client-address__field--span-2 {
+  grid-column: span 2;
+}
+
+.client-address__field--span-6 {
+  grid-column: 1 / -1;
+}
+
+.client-field {
+  display: grid;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.client-field__label {
+  color: var(--text-muted);
+}
+
+.client-field__required {
+  color: var(--error-text);
+}
+
+.client-field__input {
+  min-width: 0;
+  min-height: var(--field-height);
+  padding: 12px var(--field-padding-x);
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  background-color: var(--surface);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-family: inherit;
+}
+
+.client-field__input:disabled {
+  color: var(--text-muted);
+}
+
+.client-field__input[aria-invalid='true'] {
+  border-color: var(--error-text);
+}
+
+/* Комментарий: многострочное поле минимум на четыре строки. */
+.client-field__textarea {
+  min-height: 96px;
+  line-height: 1.45;
+  resize: vertical;
+}
+
+/* Счётчик символов под полем: «N / 500». */
+.client-field__counter {
+  justify-self: end;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ФИО найденного клиента в сообщении о дубле телефона: ссылка на его карточку. */
+.client-field__link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.client-field__link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.client-field__error {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: var(--error-text);
+  font-size: 12px;
+}
+
+.client-field__retry {
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.client-form__hint {
+  margin: 22px 0;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.client-form__error {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--error-text);
+  border-radius: var(--field-radius);
+  color: var(--error-text);
+  font-size: 13px;
+}
+
+/* Конфликт одновременного редактирования: сообщение и кнопка перезагрузки. */
+.client-form__conflict {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border: 1px solid var(--error-text);
+  border-radius: var(--field-radius);
+  color: var(--error-text);
+  font-size: 13px;
+}
+
+.client-form__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 20px;
+  border-top: 1px solid var(--border);
+}
+
+.client-button {
+  min-height: var(--field-height);
+  padding: 12px 20px;
+  border-radius: var(--field-radius);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.client-button--secondary {
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--text-primary);
+}
+
+.client-button--secondary:hover {
+  background-color: var(--nav-hover-bg);
+}
+
+.client-button--primary {
+  background-color: var(--create-button-bg);
+  color: var(--create-button-text);
+}
+
+.client-button--primary:hover {
+  background-color: var(--create-button-bg-hover);
+}
+
+.client-button:disabled {
+  cursor: default;
+  opacity: 0.75;
+}
+
+.client-button:focus-visible,
+.client-modal__close:focus-visible,
+.client-field__retry:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+@media (max-width: 650px) {
+  .client-modal {
+    padding: 24px;
+  }
+
+  /* На узком экране адресные поля идут по одному в строке. */
+  .client-address__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .client-address__field--span-2,
+  .client-address__field--span-3,
+  .client-address__field--span-6 {
+    grid-column: 1 / -1;
+  }
+}

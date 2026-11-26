@@ -95,12 +95,12 @@
   --field-height: 44px;
   --field-radius: 8px;
   --field-padding-x: 12px;
-  --table-min-width: 760px;
+  --table-min-width: 960px;
   --table-font-size: 13px;
   --table-head-font-size: 12px;
   --table-cell-padding-y: 26px;
   --table-cell-padding-x: 24px;
-  --modal-width: 520px;
+  --modal-width: 640px;
   --modal-max-width: 95vw;
   --modal-max-height: 94dvh;
   --modal-radius: 16px;
@@ -129,6 +129,11 @@
   --toast-text: #101954;
   --toast-shadow: 0 12px 32px rgb(4 11 28 / 22%);
   --toast-close-hover: rgb(16 25 84 / 8%);
+
+  /* Тот же рисунок уведомления для сообщений об ошибке. */
+  --toast-error-border: #e0a8a2;
+  --toast-error-accent: #b04040;
+  --toast-error-icon-bg: #fbe9e6;
 
   /* Палитра — светлая тема */
   --bg-workspace: #f5f6fa;
@@ -193,4 +198,7 @@
   --toast-text: #f2f4ff;
   --toast-shadow: 0 14px 40px rgb(0 0 0 / 45%);
   --toast-close-hover: rgb(242 244 255 / 12%);
+  --toast-error-border: #a4635e;
+  --toast-error-accent: #f2a0a0;
+  --toast-error-icon-bg: #43262a;
 }

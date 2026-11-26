@@ -28,8 +28,8 @@ export function ClientToolbar({
         type="search"
         value={search}
         onChange={(event) => onSearchChange(event.target.value)}
-        placeholder="Поиск по наименованию клиента…"
-        aria-label="Поиск по ФИО клиента"
+        placeholder="Поиск по ФИО или телефону…"
+        aria-label="Поиск по ФИО или телефону клиента"
         autoComplete="off"
       />
     </div>

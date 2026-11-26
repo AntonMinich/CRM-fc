@@ -1,46 +1,17 @@
-import type { FormEvent, KeyboardEvent, SyntheticEvent } from 'react';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import type { FormEvent, SyntheticEvent } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 
 import { ApiError, createClient, fetchResponsibleUsers } from '../../api/clientsApi';
-import type {
-  Client,
-  ClientFormErrors,
-  ClientFormValues,
-  LoadStatus,
-  ResponsibleUser,
-} from '../../types';
+import type { Client, LoadStatus, ResponsibleUser } from '../../types';
 import {
   EMPTY_CLIENT_FORM,
+  FIELD_ORDER,
+  mapServerFieldErrors,
   toCreateClientInput,
   validateClientForm,
 } from '../../utils/validateClientForm';
-import {
-  PHONE_PLACEHOLDER,
-  formatPhoneInput,
-  normalizePhoneInput,
-  validatePhone,
-} from '../../utils/phone';
-import './CreateClientModal.css';
-
-/** Порядок полей: используется для перевода фокуса к первому некорректному. */
-const FIELD_ORDER: readonly (keyof ClientFormValues)[] = [
-  'lastName',
-  'firstName',
-  'middleName',
-  'phone',
-  'email',
-  'responsibleUserId',
-];
-
-/** Соответствие полей формы и полей запроса. */
-const API_FIELD_NAMES: Record<keyof ClientFormValues, string> = {
-  lastName: 'last_name',
-  firstName: 'first_name',
-  middleName: 'middle_name',
-  phone: 'phone',
-  email: 'email',
-  responsibleUserId: 'responsible_user_id',
-};
+import { ClientFormFields } from '../ClientForm/ClientFormFields';
+import { DUPLICATE_PHONE_MESSAGE, useClientForm } from '../ClientForm/useClientForm';
 
 /** Ключ идемпотентности: повтор одного запроса не создаёт вторую запись. */
 function createIdempotencyKey(): string {
@@ -50,14 +21,6 @@ function createIdempotencyKey(): string {
   return `client-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function mapServerErrors(fieldErrors: Record<string, string>): ClientFormErrors {
-  const mapped: ClientFormErrors = {};
-  for (const field of FIELD_ORDER) {
-    const message = fieldErrors[API_FIELD_NAMES[field]];
-    if (message) mapped[field] = message;
-  }
-  return mapped;
-}
 
 interface CreateClientModalProps {
   open: boolean;
@@ -65,6 +28,8 @@ interface CreateClientModalProps {
   onClose: () => void;
   /** Успешное создание: окно закрывается, список обновляется. */
   onCreated: (client: Client) => void;
+  /** Переход в карточку клиента, у которого уже есть такой телефон. */
+  onOpenDuplicate: (clientId: string) => void;
 }
 
 /**
@@ -72,19 +37,16 @@ interface CreateClientModalProps {
  * Нативный `<dialog>`: фокус остаётся внутри окна, Escape перехватывается
  * и подчиняется правилам закрытия из раздела 10.
  */
-export function CreateClientModal({ open, onClose, onCreated }: CreateClientModalProps) {
+export function CreateClientModal({
+  open,
+  onClose,
+  onCreated,
+  onOpenDuplicate,
+}: CreateClientModalProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const idempotencyKeyRef = useRef<string>(createIdempotencyKey());
+  const form = useClientForm(EMPTY_CLIENT_FORM);
 
-  const lastNameRef = useRef<HTMLInputElement | null>(null);
-  const firstNameRef = useRef<HTMLInputElement | null>(null);
-  const middleNameRef = useRef<HTMLInputElement | null>(null);
-  const phoneRef = useRef<HTMLInputElement | null>(null);
-  const emailRef = useRef<HTMLInputElement | null>(null);
-  const responsibleRef = useRef<HTMLSelectElement | null>(null);
-
-  const [values, setValues] = useState<ClientFormValues>(EMPTY_CLIENT_FORM);
-  const [errors, setErrors] = useState<ClientFormErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState<ResponsibleUser[]>([]);
@@ -105,59 +67,59 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
     () =>
       // Телефон хранится цифрами национальной части, поэтому один префикс +375
       // (пустая строка) изменением не считается.
-      [values.lastName, values.firstName, values.middleName, values.phone, values.email].some(
-        (value) => value.trim() !== '',
-      ),
-    [values],
+      [
+        form.values.lastName,
+        form.values.firstName,
+        form.values.middleName,
+        form.values.phone,
+        form.values.email,
+      ].some((value) => value.trim() !== ''),
+    [form.values],
   );
 
-  const focusField = useCallback((field: keyof ClientFormValues) => {
-    const refs: Record<keyof ClientFormValues, { current: HTMLElement | null }> = {
-      lastName: lastNameRef,
-      firstName: firstNameRef,
-      middleName: middleNameRef,
-      phone: phoneRef,
-      email: emailRef,
-      responsibleUserId: responsibleRef,
-    };
-    refs[field].current?.focus();
-  }, []);
+  const { setValues, setErrors, setPhoneDuplicate } = form;
 
-  const loadUsers = useCallback(async (signal?: AbortSignal) => {
-    setUsersStatus('loading');
-    try {
-      const list = await fetchResponsibleUsers(signal);
-      if (signal?.aborted) return;
-      setUsers(list);
-      setUsersStatus('ready');
-      setValues((previous) =>
-        previous.responsibleUserId === ''
-          ? { ...previous, responsibleUserId: list[0]?.id ?? '' }
-          : previous,
-      );
-    } catch {
-      if (signal?.aborted) return;
-      setUsers([]);
-      setUsersStatus('error');
-    }
-  }, []);
+  const loadUsers = useCallback(
+    async (signal?: AbortSignal) => {
+      setUsersStatus('loading');
+      try {
+        const list = await fetchResponsibleUsers(signal);
+        if (signal?.aborted) return;
+        setUsers(list);
+        setUsersStatus('ready');
+        setValues((previous) =>
+          previous.responsibleUserId === ''
+            ? { ...previous, responsibleUserId: list[0]?.id ?? '' }
+            : previous,
+        );
+      } catch {
+        if (signal?.aborted) return;
+        setUsers([]);
+        setUsersStatus('error');
+      }
+    },
+    [setValues],
+  );
 
   // Повторное открытие: пустые поля, ответственный по умолчанию, без старых ошибок.
-  useEffect(() => {
+  // Сброс выполняется до отрисовки окна, поэтому прежние значения не мелькают
+  // в полях при повторном открытии.
+  useLayoutEffect(() => {
     if (!open) return;
     const controller = new AbortController();
-    setValues(EMPTY_CLIENT_FORM);
+    form.loadValues(EMPTY_CLIENT_FORM);
     setErrors({});
+    setPhoneDuplicate(null);
     setFormError(null);
     setSubmitting(false);
     idempotencyKeyRef.current = createIdempotencyKey();
     void loadUsers(controller.signal);
-    const timer = window.setTimeout(() => lastNameRef.current?.focus(), 0);
+    const timer = window.setTimeout(() => form.refs.lastName.current?.focus(), 0);
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [open, loadUsers]);
+  }, [open, loadUsers, setErrors, setPhoneDuplicate, form.refs, form.loadValues]);
 
   const requestClose = useCallback(() => {
     // Во время отправки закрытие заблокировано, чтобы не создавать неоднозначное состояние.
@@ -171,61 +133,14 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
     requestClose();
   };
 
-  const updateField = (field: keyof ClientFormValues, value: string) => {
-    setValues((previous) => ({ ...previous, [field]: value }));
-    // Сообщение об ошибке поля снимается, как только значение исправляют.
-    setErrors((previous) => {
-      if (!(field in previous)) return previous;
-      const next = { ...previous };
-      delete next[field];
-      return next;
-    });
-  };
-
-  /** Обновляет сообщение телефона, не трогая остальные ошибки. */
-  const setPhoneError = (message: string | null) => {
-    setErrors((previous) => {
-      const next = { ...previous };
-      if (message) {
-        next.phone = message;
-      } else {
-        delete next.phone;
-      }
-      return next;
-    });
-  };
-
-  /**
-   * В поле хранятся только цифры национальной части: маска +375 (XX) XXX-XX-XX
-   * собирается при выводе. Ошибка показывается после потери фокуса или отправки,
-   * а не на первой введённой цифре.
-   */
-  const updatePhone = (raw: string) => {
-    const digits = normalizePhoneInput(raw);
-    setValues((previous) => ({ ...previous, phone: digits }));
-    if (errors.phone) {
-      setPhoneError(validatePhone(digits));
-    }
-  };
-
-  const handlePhoneBlur = () => {
-    setPhoneError(validatePhone(values.phone.trim()));
-  };
-
-  const handlePhoneKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
-    // Backspace удаляет цифру вместе со знаками оформления рядом с ней.
-    if (event.key !== 'Backspace') return;
-    const input = event.currentTarget;
-    if (input.selectionStart !== input.selectionEnd) return;
-    if (values.phone === '') return;
-
-    event.preventDefault();
-    const digits = values.phone.slice(0, -1);
-    setValues((previous) => ({ ...previous, phone: digits }));
-    if (errors.phone) {
-      setPhoneError(validatePhone(digits));
-    }
-  };
+  /** Переход в карточку клиента с таким же телефоном. */
+  const handleOpenDuplicate = useCallback(
+    (clientId: string) => {
+      if (hasChanges && !window.confirm('Закрыть окно без сохранения?')) return;
+      onOpenDuplicate(clientId);
+    },
+    [hasChanges, onOpenDuplicate],
+  );
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -237,37 +152,48 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
     }
 
     const allowed = (id: string) => users.some((user) => user.id === id);
-    const nextErrors = validateClientForm(values, allowed);
+    const nextErrors = validateClientForm(form.values, allowed);
     setErrors(nextErrors);
     setFormError(null);
 
     const firstInvalid = FIELD_ORDER.find((field) => nextErrors[field]);
     if (firstInvalid) {
-      focusField(firstInvalid);
+      form.focusField(firstInvalid);
       return;
     }
 
     setSubmitting(true);
     try {
-      const created = await createClient(toCreateClientInput(values), idempotencyKeyRef.current);
+      const created = await createClient(
+        toCreateClientInput(form.values),
+        idempotencyKeyRef.current,
+      );
       setSubmitting(false);
       onCreated(created);
     } catch (error) {
       setSubmitting(false);
+      if (
+        error instanceof ApiError &&
+        error.code === 'duplicate_phone' &&
+        error.duplicateClient
+      ) {
+        // Номер занят: сообщение под полем с переходом в карточку найденного клиента.
+        setPhoneDuplicate(error.duplicateClient);
+        setErrors({ phone: DUPLICATE_PHONE_MESSAGE });
+        form.focusField('phone');
+        return;
+      }
       if (error instanceof ApiError && error.fieldErrors) {
-        const mapped = mapServerErrors(error.fieldErrors);
+        const mapped = mapServerFieldErrors(error.fieldErrors);
         setErrors(mapped);
         const firstField = FIELD_ORDER.find((field) => mapped[field]);
-        if (firstField) focusField(firstField);
+        if (firstField) form.focusField(firstField);
         return;
       }
       // Значения формы сохраняются, кнопка снова доступна.
       setFormError('Не удалось создать клиента. Попробуйте ещё раз');
     }
   };
-
-  const fieldError = (field: keyof ClientFormValues) => errors[field];
-  const errorId = (field: keyof ClientFormValues) => `create-client-${field}-error`;
 
   return (
     <dialog
@@ -291,146 +217,15 @@ export function CreateClientModal({ open, onClose, onCreated }: CreateClientModa
       </h2>
 
       <form className="client-form" onSubmit={handleSubmit} noValidate>
-        <div className="client-form__fields">
-          <label className="client-field" htmlFor="create-client-last-name">
-            <span className="client-field__label">Фамилия</span>
-            <input
-              id="create-client-last-name"
-              className="client-field__input"
-              ref={lastNameRef}
-              value={values.lastName}
-              onChange={(event) => updateField('lastName', event.target.value)}
-              autoComplete="family-name"
-              maxLength={100}
-            />
-          </label>
-
-          <label className="client-field" htmlFor="create-client-first-name">
-            <span className="client-field__label">
-              Имя <span className="client-field__required">*</span>
-            </span>
-            <input
-              id="create-client-first-name"
-              className="client-field__input"
-              ref={firstNameRef}
-              value={values.firstName}
-              onChange={(event) => updateField('firstName', event.target.value)}
-              autoComplete="given-name"
-              maxLength={100}
-              required
-              aria-required="true"
-              aria-invalid={Boolean(fieldError('firstName'))}
-              aria-describedby={fieldError('firstName') ? errorId('firstName') : undefined}
-            />
-            {fieldError('firstName') ? (
-              <span className="client-field__error" id={errorId('firstName')}>
-                {fieldError('firstName')}
-              </span>
-            ) : null}
-          </label>
-
-          <label className="client-field" htmlFor="create-client-middle-name">
-            <span className="client-field__label">Отчество</span>
-            <input
-              id="create-client-middle-name"
-              className="client-field__input"
-              ref={middleNameRef}
-              value={values.middleName}
-              onChange={(event) => updateField('middleName', event.target.value)}
-              autoComplete="additional-name"
-              maxLength={100}
-            />
-          </label>
-
-          <label className="client-field" htmlFor="create-client-phone">
-            <span className="client-field__label">
-              Телефон <span className="client-field__required">*</span>
-            </span>
-            <input
-              id="create-client-phone"
-              className="client-field__input"
-              ref={phoneRef}
-              type="tel"
-              inputMode="tel"
-              autoComplete="tel"
-              placeholder={PHONE_PLACEHOLDER}
-              value={formatPhoneInput(values.phone)}
-              onChange={(event) => updatePhone(event.target.value)}
-              onBlur={handlePhoneBlur}
-              onKeyDown={handlePhoneKeyDown}
-              required
-              aria-required="true"
-              aria-invalid={Boolean(fieldError('phone'))}
-              aria-describedby={fieldError('phone') ? errorId('phone') : undefined}
-            />
-            {fieldError('phone') ? (
-              <span className="client-field__error" id={errorId('phone')}>
-                {fieldError('phone')}
-              </span>
-            ) : null}
-          </label>
-
-          <label className="client-field" htmlFor="create-client-email">
-            <span className="client-field__label">E-mail</span>
-            <input
-              id="create-client-email"
-              className="client-field__input"
-              ref={emailRef}
-              type="email"
-              value={values.email}
-              onChange={(event) => updateField('email', event.target.value)}
-              autoComplete="email"
-              maxLength={254}
-              aria-invalid={Boolean(fieldError('email'))}
-              aria-describedby={fieldError('email') ? errorId('email') : undefined}
-            />
-            {fieldError('email') ? (
-              <span className="client-field__error" id={errorId('email')}>
-                {fieldError('email')}
-              </span>
-            ) : null}
-          </label>
-
-          <label className="client-field" htmlFor="create-client-responsible">
-            <span className="client-field__label">
-              Ответственный <span className="client-field__required">*</span>
-            </span>
-            <select
-              id="create-client-responsible"
-              className="client-field__input"
-              ref={responsibleRef}
-              value={values.responsibleUserId}
-              onChange={(event) => updateField('responsibleUserId', event.target.value)}
-              disabled={usersStatus !== 'ready'}
-              required
-              aria-required="true"
-              aria-invalid={Boolean(fieldError('responsibleUserId'))}
-              aria-describedby={
-                fieldError('responsibleUserId') ? errorId('responsibleUserId') : undefined
-              }
-            >
-              {usersStatus === 'loading' ? <option value="">Загрузка…</option> : null}
-              {users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.fullName}
-                </option>
-              ))}
-            </select>
-            {usersStatus === 'error' ? (
-              <span className="client-field__error" role="alert">
-                Не удалось загрузить список ответственных
-                <button type="button" className="client-field__retry" onClick={() => void loadUsers()}>
-                  Повторить
-                </button>
-              </span>
-            ) : null}
-            {fieldError('responsibleUserId') ? (
-              <span className="client-field__error" id={errorId('responsibleUserId')}>
-                {fieldError('responsibleUserId')}
-              </span>
-            ) : null}
-          </label>
-        </div>
+        <ClientFormFields
+          idPrefix="create-client"
+          form={form}
+          users={users}
+          usersStatus={usersStatus}
+          disabled={submitting}
+          onRetryUsers={() => void loadUsers()}
+          onOpenDuplicate={handleOpenDuplicate}
+        />
 
         <p className="client-form__hint">* — обязательные поля</p>
 

@@ -233,6 +233,7 @@ async function collect(page) {
       clientSearchPresent: document.querySelector('.client-search') !== null,
       clientSearchPlaceholder:
         document.querySelector('.client-search')?.getAttribute('placeholder') ?? null,
+      clientSearchLabel: document.querySelector('.client-search')?.getAttribute('aria-label') ?? null,
       clientTablePresent: document.querySelector('.client-table') !== null,
       clientTableHeaders: Array.from(document.querySelectorAll('.client-table thead th')).map(
         (cell) => trim(cell.textContent),
@@ -421,8 +422,12 @@ async function checkLayout(page, engine, theme, viewport, route) {
     check(data.createButtonText === 'Создать', `${label} подпись кнопки: ${data.createButtonText}`);
     check(data.clientSearchPresent, `${label} поле поиска отсутствует`);
     check(
-      data.clientSearchPlaceholder === 'Поиск по наименованию клиента…',
+      data.clientSearchPlaceholder === 'Поиск по ФИО или телефону…',
       `${label} подсказка поиска: ${data.clientSearchPlaceholder}`,
+    );
+    check(
+      data.clientSearchLabel === 'Поиск по ФИО или телефону клиента',
+      `${label} доступное имя поиска: ${data.clientSearchLabel}`,
     );
     check(data.clientModalPresent, `${label} модальное окно отсутствует в разметке`);
     // Прогон макетов идёт до сценариев создания, база на этом этапе пуста.
@@ -756,8 +761,8 @@ function checkTableStyles(styles, theme, engine) {
   );
   check(styles.borderCollapse === 'separate', `${label} border-collapse: ${styles.borderCollapse}`);
   check(styles.tableLayout === 'fixed', `${label} table-layout: ${styles.tableLayout}`);
-  check(styles.colCount === 4, `${label} колонок в colgroup: ${styles.colCount}`);
-  check(styles.minWidth === '760px', `${label} минимальная ширина таблицы: ${styles.minWidth}`);
+  check(styles.colCount === 5, `${label} колонок в colgroup: ${styles.colCount}`);
+  check(styles.minWidth === '960px', `${label} минимальная ширина таблицы: ${styles.minWidth}`);
   check(
     styles.cellBorderLeftWidth === '0px' &&
       styles.cellBorderRightWidth === '0px' &&
@@ -811,6 +816,7 @@ async function checkClientsFlow(browser) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const posts = [];
+  const patches = [];
   // На время сценария с недоступным сервером ожидаемая сетевая ошибка в консоли
   // не считается дефектом.
   let abortingRequests = false;
@@ -818,10 +824,14 @@ async function checkClientsFlow(browser) {
     if (request.method() === 'POST' && request.url().includes('/api/clients')) {
       posts.push(request.headers()['idempotency-key'] ?? null);
     }
+    if (request.method() === 'PATCH' && request.url().includes('/api/clients')) {
+      patches.push(request.headers()['idempotency-key'] ?? null);
+    }
   });
   page.on('console', (message) => {
     if (message.type() !== 'error') return;
     if (abortingRequests && message.text().includes('ERR_FAILED')) return;
+    if (isExpectedHttpError(message.text())) return;
     problems.push(`[${engine} клиенты] console: ${message.text()}`);
   });
   page.on('pageerror', (error) => problems.push(`[${engine} клиенты] pageerror: ${error.message}`));
@@ -830,6 +840,14 @@ async function checkClientsFlow(browser) {
     confirmCount += 1;
     void dialog.accept();
   });
+  // Сценарии конфликта и удалённого клиента ожидают ответы 409 и 404: ошибки
+  // этих запросов в консоли не считаются дефектами.
+  let expectingHttpError = false;
+  const isExpectedHttpError = (text) =>
+    expectingHttpError &&
+    (text.includes('409 (Conflict)') ||
+      text.includes('404 (Not Found)') ||
+      text.includes('422 (Unprocessable'));
 
   const openModal = async () => {
     await page.click('.client-toolbar .create-button');
@@ -861,9 +879,11 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] заголовок окна: "${dialogTitle}"`,
   );
   const fieldIds = await page.evaluate(() =>
-    Array.from(document.querySelectorAll('dialog.client-modal .client-field__input')).map(
-      (element) => element.id,
-    ),
+    Array.from(
+      document.querySelectorAll(
+        'dialog.client-modal [role="tabpanel"]:not([hidden]) .client-field__input',
+      ),
+    ).map((element) => element.id),
   );
   check(
     fieldIds.join('|') ===
@@ -874,8 +894,46 @@ async function checkClientsFlow(browser) {
         'create-client-phone',
         'create-client-email',
         'create-client-responsible',
+        'create-client-comment',
       ].join('|'),
     `[${engine} клиенты] порядок полей: ${fieldIds.join('|')}`,
+  );
+  const windowTabs = await page.evaluate(() =>
+    Array.from(document.querySelectorAll('dialog.client-modal [role="tab"]')).map((tab) => ({
+      label: tab.textContent.trim(),
+      selected: tab.getAttribute('aria-selected'),
+    })),
+  );
+  check(
+    windowTabs.map((tab) => tab.label).join('|') === 'Установочные данные|Реквизиты' &&
+      windowTabs[0]?.selected === 'true' &&
+      windowTabs[1]?.selected === 'false',
+    `[${engine} клиенты] вкладки окна: ${JSON.stringify(windowTabs)}`,
+  );
+  const addressFieldIds = await page.evaluate(() =>
+    Array.from(
+      document.querySelectorAll('dialog.client-modal [role="tabpanel"][hidden] .client-field__input'),
+    ).map((element) => element.id),
+  );
+  check(
+    addressFieldIds.join('|') ===
+      [
+        'create-client-reg-postal-code',
+        'create-client-reg-country',
+        'create-client-reg-city',
+        'create-client-reg-street',
+        'create-client-reg-house',
+        'create-client-reg-building',
+        'create-client-reg-apartment',
+        'create-client-res-postal-code',
+        'create-client-res-country',
+        'create-client-res-city',
+        'create-client-res-street',
+        'create-client-res-house',
+        'create-client-res-building',
+        'create-client-res-apartment',
+      ].join('|'),
+    `[${engine} клиенты] поля вкладки «Реквизиты»: ${addressFieldIds.join('|')}`,
   );
   check(
     (await page.inputValue('#create-client-responsible')) !== '' &&
@@ -1086,13 +1144,18 @@ async function checkClientsFlow(browser) {
   check(data.clientRows.length === 1, `[${engine} клиенты] строк в таблице: ${data.clientRows.length}`);
   check(
     data.clientRows[0]?.join('|') ===
-      ['Иванов Иван Иванович', '+375 (29) 111-22-33', 'client@example.com', RESPONSIBLE_NAME].join(
-        '|',
-      ),
+      [
+        'Иванов Иван Иванович',
+        '+375 (29) 111-22-33',
+        'client@example.com',
+        RESPONSIBLE_NAME,
+        '—',
+      ].join('|'),
     `[${engine} клиенты] первая строка: ${data.clientRows[0]?.join(' | ')}`,
   );
   check(
-    data.clientTableHeaders.join('|') === ['Клиент', 'Телефон', 'E-mail', 'Ответственный'].join('|'),
+    data.clientTableHeaders.join('|') ===
+      ['Клиент', 'Телефон', 'E-mail', 'Ответственный', 'Комментарий'].join('|'),
     `[${engine} клиенты] заголовки таблицы: ${data.clientTableHeaders.join('|')}`,
   );
 
@@ -1104,6 +1167,43 @@ async function checkClientsFlow(browser) {
     data.clientRows[0]?.[0] === 'Иванов Иван Иванович',
     `[${engine} клиенты] после обновления страницы: ${data.clientRows[0]?.[0]}`,
   );
+
+  // --- Живая проверка дубля телефона (сообщение при вводе) ------------------
+  posts.length = 0;
+  await openModal();
+  await page.fill('#create-client-first-name', 'Дубль');
+  await page.fill('#create-client-phone', '+375291112233');
+  await page.waitForSelector('#create-client-phone-error');
+  const liveDuplicate = await page.evaluate(() => {
+    const error = document.querySelector('#create-client-phone-error');
+    const link = error?.querySelector('.client-field__link');
+    return {
+      text: error?.textContent?.trim() ?? null,
+      invalid: document.querySelector('#create-client-phone')?.getAttribute('aria-invalid'),
+      linkLabel: link?.textContent?.trim() ?? null,
+    };
+  });
+  check(
+    liveDuplicate.text === 'Клиент с таким номером уже создан: Иванов Иван Иванович',
+    `[${engine} клиенты] живая подсказка о дубле: "${liveDuplicate.text}"`,
+  );
+  check(
+    liveDuplicate.invalid === 'true' && liveDuplicate.linkLabel === 'Иванов Иван Иванович',
+    `[${engine} клиенты] поле телефона не помечено ошибкой или нет ссылки на ФИО`,
+  );
+  check(posts.length === 0, `[${engine} клиенты] живая проверка отправила запрос на создание`);
+
+  // Сообщение исчезает, когда номер меняют.
+  await page.fill('#create-client-phone', '+375291112299');
+  await page.waitForTimeout(800);
+  check(
+    (await page.locator('#create-client-phone-error').count()) === 0,
+    `[${engine} клиенты] сообщение о дубле не исчезло после смены номера`,
+  );
+  await page.click('.client-form .client-button--secondary');
+  await waitModalClosed();
+  await page.waitForTimeout(200);
+  check(posts.length === 0, `[${engine} клиенты] закрытие после живой проверки отправило запрос`);
 
   // --- Поиск ---------------------------------------------------------------
   await page.fill('.client-search', 'СИДОР');
@@ -1128,6 +1228,39 @@ async function checkClientsFlow(browser) {
   check(
     data.clientRows.length === 1,
     `[${engine} клиенты] многословный поиск: строк ${data.clientRows.length}`,
+  );
+
+  // --- Поиск по телефону ---------------------------------------------------
+  await page.fill('.client-search', '+375 (29) 111-22-33');
+  await page.waitForTimeout(700);
+  data = await collect(page);
+  check(
+    data.clientRows.length === 1 && data.clientRows[0]?.[0] === 'Иванов Иван Иванович',
+    `[${engine} клиенты] поиск по номеру в формате маски: строк ${data.clientRows.length}`,
+  );
+
+  await page.fill('.client-search', '1112233');
+  await page.waitForTimeout(700);
+  data = await collect(page);
+  check(
+    data.clientRows.length === 1,
+    `[${engine} клиенты] поиск по части номера: строк ${data.clientRows.length}`,
+  );
+
+  await page.fill('.client-search', '8 029 1112233');
+  await page.waitForTimeout(700);
+  data = await collect(page);
+  check(
+    data.clientRows.length === 1,
+    `[${engine} клиенты] поиск по номеру с началом «8 0»: строк ${data.clientRows.length}`,
+  );
+
+  await page.fill('.client-search', '4444444');
+  await page.waitForTimeout(700);
+  const phoneNotFound = (await page.locator('.client-table-state').textContent())?.trim();
+  check(
+    phoneNotFound === CLIENTS_NOT_FOUND_TEXT,
+    `[${engine} клиенты] поиск по отсутствующему номеру: "${phoneNotFound}"`,
   );
 
   await page.fill('.client-search', '');
@@ -1228,8 +1361,8 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] подсветка меняет высоту строки: ${rowHeightBefore} -> ${hovered.height}`,
   );
   check(
-    hovered.cursor === 'auto' || hovered.cursor === 'default',
-    `[${engine} клиенты] строка выглядит кликабельной: ${hovered.cursor}`,
+    hovered.cursor === 'pointer',
+    `[${engine} клиенты] у строки нет курсора-указателя: ${hovered.cursor}`,
   );
 
   const hoverShotLight = `${OUT_DIR}/crm-clients-hover-light-1440x900.png`;
@@ -1443,6 +1576,644 @@ async function checkClientsFlow(browser) {
   check(
     legacyPhone === '=375441203343',
     `[${engine} клиенты] старый формат телефона не показан как есть: ${legacyPhone}`,
+  );
+
+  // --- Карточка клиента: открытие, правка, конфликт (ТЗ на редактирование) ---
+  const cardDialog = 'dialog.client-modal--edit';
+  const cardTitle = async () =>
+    (await page.locator('#edit-client-title').textContent())?.trim() ?? null;
+  const waitCardOpen = async () => {
+    await page.waitForFunction(
+      (selector) => document.querySelector(selector)?.open === true,
+      cardDialog,
+    );
+    // Фокус переводится отдельным таймером после открытия окна.
+    await page.waitForTimeout(120);
+  };
+  const waitCardClosed = () => page.waitForSelector(cardDialog, { state: 'detached' });
+  const submitCard = () => page.click(`${cardDialog} .client-form button[type="submit"]`);
+  /** Уведомление предыдущего шага не должно мешать проверкам карточки. */
+  const closeToastIfVisible = async () => {
+    if ((await page.locator('.toast__close').count()) > 0) {
+      await page.click('.toast__close');
+      await page.waitForTimeout(200);
+    }
+  };
+  const cardValue = (id) => page.inputValue(id);
+  const cardError = async (id) => {
+    const locator = page.locator(`#${id}`);
+    return (await locator.count()) > 0 ? (await locator.first().textContent()).trim() : null;
+  };
+  const rowNames = () =>
+    page.$$eval('.client-table tbody tr', (rows) =>
+      rows.map((row) => (row.querySelector('.client-row-open')?.textContent ?? '').trim()),
+    );
+  const openCardByName = async (name) => {
+    await page.click(`.client-row-open[aria-label="Открыть карточку клиента ${name}"]`);
+    await waitCardOpen();
+  };
+
+  /** Чтение и правка базы из скрипта: имитируют второго пользователя. */
+  const queryDb = (sql, ...params) => {
+    const conn = new DatabaseSync(DB_FILE);
+    const rows = conn.prepare(sql).all(...params);
+    conn.close();
+    return rows;
+  };
+  const clientIdByPhone = (phone) => queryDb('SELECT id FROM clients WHERE phone = ?', phone)[0]?.id;
+  const clientRowById = (id) => queryDb('SELECT * FROM clients WHERE id = ?', id)[0] ?? null;
+  const mutateClientRow = (id, fields) => {
+    const conn = new DatabaseSync(DB_FILE);
+    const names = Object.keys(fields);
+    conn
+      .prepare(`UPDATE clients SET ${names.map((name) => `${name} = ?`).join(', ')} WHERE id = ?`)
+      .run(...names.map((name) => fields[name]), id);
+    conn.close();
+  };
+  const deleteClientRow = (id) => {
+    const conn = new DatabaseSync(DB_FILE);
+    // Дочерние таблицы ссылаются на клиента внешним ключом.
+    conn.prepare('DELETE FROM client_creation_requests WHERE client_id = ?').run(id);
+    conn.prepare('DELETE FROM client_update_requests WHERE client_id = ?').run(id);
+    conn.prepare('DELETE FROM clients WHERE id = ?').run(id);
+    conn.close();
+  };
+
+  // Снимки карточки делаются в светлой теме, как и остальные снимки списка.
+  if ((await page.evaluate(() => document.documentElement.getAttribute('data-theme'))) !== 'light') {
+    await page.click('[role="switch"]');
+    await page.waitForFunction(
+      () => document.documentElement.getAttribute('data-theme') === 'light',
+    );
+    await page.waitForTimeout(200);
+  }
+
+  // Уведомление от предыдущего шага сценария не должно мешать проверкам карточки.
+  await closeToastIfVisible();
+
+  patches.length = 0;
+  confirmCount = 0;
+
+  // Клик по ячейке «Телефон» открывает карточку: кликабельна вся строка.
+  const ivanovName = 'Иванов Иван Иванович';
+  const ivanovIndex = (await rowNames()).indexOf(ivanovName);
+  await page.click(`.client-table tbody tr:nth-child(${ivanovIndex + 1}) td:nth-child(2)`);
+  await waitCardOpen();
+  check(
+    (await cardTitle()) === 'Карточка клиента',
+    `[${engine} карточка] заголовок окна: ${await cardTitle()}`,
+  );
+  check(
+    (await page.evaluate(() => document.activeElement?.id)) === 'edit-client-first-name',
+    `[${engine} карточка] фокус не переведён на поле «Имя»`,
+  );
+  check(
+    (await cardValue('#edit-client-last-name')) === 'Иванов' &&
+      (await cardValue('#edit-client-first-name')) === 'Иван' &&
+      (await cardValue('#edit-client-middle-name')) === 'Иванович',
+    `[${engine} карточка] ФИО не заполнено сохранёнными значениями`,
+  );
+  check(
+    (await cardValue('#edit-client-phone')) === '+375 (29) 111-22-33',
+    `[${engine} карточка] телефон не по маске: ${await cardValue('#edit-client-phone')}`,
+  );
+  check(
+    (await cardValue('#edit-client-email')) === 'client@example.com',
+    `[${engine} карточка] E-mail не заполнен: ${await cardValue('#edit-client-email')}`,
+  );
+  check(
+    (await page.locator('#edit-client-responsible option:checked').textContent())?.trim() ===
+      RESPONSIBLE_NAME,
+    `[${engine} карточка] ответственный не выбран сохранённым значением`,
+  );
+  const cardFieldOrder = await page.evaluate(
+    (selector) =>
+      Array.from(
+        document.querySelectorAll(`${selector} [role="tabpanel"]:not([hidden]) .client-field__input`),
+      ).map((element) => element.id),
+    cardDialog,
+  );
+  check(
+    cardFieldOrder.join('|') ===
+      [
+        'edit-client-last-name',
+        'edit-client-first-name',
+        'edit-client-middle-name',
+        'edit-client-phone',
+        'edit-client-email',
+        'edit-client-responsible',
+        'edit-client-comment',
+      ].join('|'),
+    `[${engine} карточка] порядок полей: ${cardFieldOrder.join('|')}`,
+  );
+
+  const cardShotLight = `${OUT_DIR}/crm-clients-card-light-1440x900.png`;
+  await page.screenshot({ path: cardShotLight });
+  notes.push(`скриншот: ${cardShotLight}`);
+
+  // Escape без правок закрывает окно без подтверждения и без запроса.
+  await page.keyboard.press('Escape');
+  await waitCardClosed();
+  await page.waitForTimeout(250);
+  check(confirmCount === 0, `[${engine} карточка] подтверждение при закрытии без правок`);
+  check(patches.length === 0, `[${engine} карточка] закрытие отправило запрос обновления`);
+  check(
+    String(await page.evaluate(() => document.activeElement?.className)).includes('client-row-open'),
+    `[${engine} карточка] фокус не вернулся на кнопку строки`,
+  );
+
+  // Строка открывается с клавиатуры по Enter.
+  await page.locator(`.client-row-open[aria-label="Открыть карточку клиента ${ivanovName}"]`).focus();
+  await page.keyboard.press('Enter');
+  await waitCardOpen();
+  await page.keyboard.press('Escape');
+  await waitCardClosed();
+  await page.waitForTimeout(150);
+
+  // Сохранение без изменений закрывает окно без запроса и без уведомления.
+  patches.length = 0;
+  await openCardByName(ivanovName);
+  await submitCard();
+  await waitCardClosed();
+  await page.waitForTimeout(300);
+  check(patches.length === 0, `[${engine} карточка] сохранение без изменений отправило запрос`);
+  check(
+    (await page.locator('.toast__message').count()) === 0,
+    `[${engine} карточка] сохранение без изменений показало уведомление`,
+  );
+
+  // Ошибки полей: запрос не отправляется, окно остаётся открытым.
+  patches.length = 0;
+  await openCardByName(ivanovName);
+  await page.fill('#edit-client-first-name', '   ');
+  await submitCard();
+  await page.waitForTimeout(150);
+  check(
+    (await cardError('edit-client-firstName-error')) === 'Укажите имя',
+    `[${engine} карточка] сообщение по имени: ${await cardError('edit-client-firstName-error')}`,
+  );
+  check(patches.length === 0, `[${engine} карточка] при ошибке имени отправлен запрос`);
+
+  await page.fill('#edit-client-first-name', 'Иван');
+  await page.fill('#edit-client-phone', '');
+  await page.locator('#edit-client-phone').blur();
+  await submitCard();
+  await page.waitForTimeout(150);
+  check(
+    (await cardError('edit-client-phone-error')) === 'Укажите телефон',
+    `[${engine} карточка] пустой телефон: ${await cardError('edit-client-phone-error')}`,
+  );
+
+  await page.fill('#edit-client-phone', '+3754475');
+  await page.locator('#edit-client-phone').blur();
+  await page.waitForTimeout(120);
+  check(
+    (await cardError('edit-client-phone-error')) ===
+      'Введите номер полностью: +375 (XX) XXX-XX-XX',
+    `[${engine} карточка] неполный телефон: ${await cardError('edit-client-phone-error')}`,
+  );
+
+  await page.fill('#edit-client-phone', '+375291112233');
+  await page.fill('#edit-client-email', 'client@example');
+  await submitCard();
+  await page.waitForTimeout(150);
+  check(
+    (await cardError('edit-client-email-error')) === 'Укажите корректный E-mail',
+    `[${engine} карточка] некорректный E-mail: ${await cardError('edit-client-email-error')}`,
+  );
+  check(patches.length === 0, `[${engine} карточка] при ошибке E-mail отправлен запрос`);
+
+  // «Отмена» при несохранённых правках спрашивает подтверждение.
+  const cancelConfirmBefore = confirmCount;
+  await page.click(`${cardDialog} .client-button--secondary`);
+  await waitCardClosed();
+  await page.waitForTimeout(150);
+  check(
+    confirmCount === cancelConfirmBefore + 1,
+    `[${engine} карточка] «Отмена» без подтверждения: ${confirmCount}`,
+  );
+  check(patches.length === 0, `[${engine} карточка] «Отмена» отправила запрос`);
+
+  // Успешное сохранение: очистка необязательных полей становится NULL.
+  const ivanovId = clientIdByPhone('+375291112233');
+  const ivanovBefore = clientRowById(ivanovId);
+  const idsBefore = queryDb('SELECT id FROM clients ORDER BY created_at DESC, id DESC').map(
+    (row) => row.id,
+  );
+  patches.length = 0;
+  await openCardByName(ivanovName);
+  await page.fill('#edit-client-last-name', '');
+  await page.fill('#edit-client-middle-name', '');
+  await page.fill('#edit-client-email', '');
+  await submitCard();
+  await waitCardClosed();
+  await page.waitForSelector('.toast__message');
+  await page.waitForTimeout(300);
+  check(patches.length === 1, `[${engine} карточка] запросов обновления: ${patches.length}`);
+  check(Boolean(patches[0]), `[${engine} карточка] обновление без ключа идемпотентности`);
+  check(
+    (await page.locator('.toast__message .toast__text').textContent())?.trim() ===
+      'Изменения сохранены',
+    `[${engine} карточка] текст уведомления: ${(
+      await page.locator('.toast__message .toast__text').textContent()
+    )?.trim()}`,
+  );
+
+  const ivanovAfter = clientRowById(ivanovId);
+  check(
+    ivanovAfter?.last_name === null &&
+      ivanovAfter?.middle_name === null &&
+      ivanovAfter?.email === null,
+    `[${engine} карточка] очищенные поля не стали NULL: ${JSON.stringify([
+      ivanovAfter?.last_name,
+      ivanovAfter?.middle_name,
+      ivanovAfter?.email,
+    ])}`,
+  );
+  check(
+    ivanovAfter?.created_at === ivanovBefore?.created_at,
+    `[${engine} карточка] created_at изменился: ${ivanovBefore?.created_at}`,
+  );
+  check(
+    ivanovAfter?.updated_at !== ivanovBefore?.updated_at,
+    `[${engine} карточка] updated_at не обновился: ${ivanovAfter?.updated_at}`,
+  );
+  await page.waitForFunction(
+    () => document.querySelectorAll('.client-table tbody tr').length === 5,
+  );
+  check(
+    queryDb('SELECT id FROM clients ORDER BY created_at DESC, id DESC')
+      .map((row) => row.id)
+      .join('|') === idsBefore.join('|'),
+    `[${engine} карточка] порядок записей изменился`,
+  );
+  // Конфликт одновременного редактирования (раздел 8 ТЗ).
+  await closeToastIfVisible();
+  const ivanovIdAfter = clientIdByPhone('+375291112233');
+  await openCardByName('Иван');
+  await page.fill('#edit-client-middle-name', 'Петрович');
+  // Пока карточка открыта, запись меняет «другой пользователь».
+  mutateClientRow(ivanovIdAfter, { first_name: 'Иной', updated_at: '2099-01-01T00:00:00.000Z' });
+  patches.length = 0;
+  expectingHttpError = true;
+  await submitCard();
+  await page.waitForSelector(`${cardDialog} .client-form__conflict`);
+  const conflictText = (
+    await page.locator(`${cardDialog} .client-form__conflict span`).textContent()
+  )?.trim();
+  check(
+    conflictText === 'Карточка была изменена другим пользователем. Обновите данные.',
+    `[${engine} карточка] сообщение о конфликте: ${conflictText}`,
+  );
+  check(
+    (await page.locator(cardDialog).evaluate((element) => element.open)) === true,
+    `[${engine} карточка] окно закрылось при конфликте`,
+  );
+  check(
+    (await cardValue('#edit-client-middle-name')) === 'Петрович',
+    `[${engine} карточка] введённые правки потеряны при конфликте`,
+  );
+  check(
+    clientRowById(ivanovIdAfter)?.first_name === 'Иной',
+    `[${engine} карточка] конфликт затёр чужие правки`,
+  );
+
+  // «Обновить» подгружает актуальные значения и снимает сообщение о конфликте.
+  await page.click(`${cardDialog} .client-form__conflict .client-field__retry`);
+  await page.waitForFunction(
+    (selector) =>
+      document.querySelector('#edit-client-first-name')?.value === 'Иной' &&
+      document.querySelector(`${selector} .client-form__conflict`) === null,
+    cardDialog,
+  );
+  check(
+    (await cardValue('#edit-client-first-name')) === 'Иной',
+    `[${engine} карточка] «Обновить» не подгрузило значения: ${await cardValue('#edit-client-first-name')}`,
+  );
+  check(
+    (await page.locator('.toast__message').count()) === 0,
+    `[${engine} карточка] конфликт показал уведомление об успехе`,
+  );
+  expectingHttpError = false;
+
+  // После обновления сохранение проходит.
+  await page.fill('#edit-client-first-name', 'Иван');
+  patches.length = 0;
+  await submitCard();
+  await waitCardClosed();
+  await page.waitForTimeout(200);
+  check(
+    patches.length === 1,
+    `[${engine} карточка] сохранение после «Обновить»: запросов ${patches.length}`,
+  );
+  check(
+    clientRowById(ivanovIdAfter)?.first_name === 'Иван',
+    `[${engine} карточка] значение не сохранено после конфликта`,
+  );
+
+  // Запись со старым форматом телефона: в поле только префикс +375.
+  await closeToastIfVisible();
+  await openCardByName('Старый Номер');
+  check(
+    (await cardValue('#edit-client-phone')) === '+375',
+    `[${engine} карточка] старый формат телефона: ${await cardValue('#edit-client-phone')}`,
+  );
+  patches.length = 0;
+  await submitCard();
+  await waitCardClosed();
+  await page.waitForTimeout(200);
+  check(
+    patches.length === 0,
+    `[${engine} карточка] закрытие карточки со старым номером отправило запрос`,
+  );
+  check(
+    clientRowById(clientIdByPhone('=375441203343'))?.phone === '=375441203343',
+    `[${engine} карточка] старое значение телефона изменилось без сохранения`,
+  );
+
+  // Клиент удалён: окно закрывается, список обновляется, показывается сообщение.
+  await openCardByName('Мария');
+  deleteClientRow(clientIdByPhone('+375293334455'));
+  await page.fill('#edit-client-middle-name', 'Сергеевна');
+  expectingHttpError = true;
+  await submitCard();
+  await waitCardClosed();
+  await page.waitForFunction(
+    () => document.querySelectorAll('.client-table tbody tr').length === 4,
+  );
+  expectingHttpError = false;
+  check(
+    (await page.locator('.toast__message .toast__text').textContent())?.trim() ===
+      'Клиент не найден',
+    `[${engine} карточка] сообщение при удалённом клиенте: ${(
+      await page.locator('.toast__message .toast__text').textContent()
+    )?.trim()}`,
+  );
+  check(
+    (await page.locator('.toast__message--error').count()) === 1,
+    `[${engine} карточка] сообщение об ошибке не отличается оформлением`,
+  );
+  check(
+    !(await rowNames()).includes('Мария'),
+    `[${engine} карточка] удалённый клиент остался в списке`,
+  );
+
+  // Карточка в тёмной теме.
+  await closeToastIfVisible();
+  await page.click('[role="switch"]');
+  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
+  await page.waitForTimeout(200);
+  await openCardByName('Иван');
+  const cardShotDark = `${OUT_DIR}/crm-clients-card-dark-1440x900.png`;
+  await page.screenshot({ path: cardShotDark });
+  notes.push(`скриншот: ${cardShotDark}`);
+  await page.keyboard.press('Escape');
+  await waitCardClosed();
+  await page.click('[role="switch"]');
+  await page.waitForFunction(
+    () => document.documentElement.getAttribute('data-theme') === 'light',
+  );
+  await page.waitForTimeout(150);
+
+  // --- Вкладки карточки: «Реквизиты» ---------------------------------------
+  await closeToastIfVisible();
+  await openCardByName('Иван');
+
+  const tabState = () =>
+    page.evaluate(
+      (selector) =>
+        Array.from(document.querySelectorAll(`${selector} [role="tab"]`)).map((tab) => ({
+          selected: tab.getAttribute('aria-selected'),
+          focused: document.activeElement === tab,
+        })),
+      cardDialog,
+    );
+
+  check(
+    (await tabState()).map((tab) => tab.selected).join('|') === 'true|false',
+    `[${engine} карточка] при открытии активна не первая вкладка: ${JSON.stringify(await tabState())}`,
+  );
+  check(
+    await page.locator(`${cardDialog} #edit-client-panel-addresses`).isHidden(),
+    `[${engine} карточка] панель реквизитов видна на первой вкладке`,
+  );
+
+  // Стрелка вправо переключает вкладку и переводит на неё фокус.
+  await page.locator(`${cardDialog} #edit-client-tab-main`).focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(200);
+  const afterArrow = await tabState();
+  check(
+    afterArrow.map((tab) => tab.selected).join('|') === 'false|true' && afterArrow[1]?.focused,
+    `[${engine} карточка] стрелка не переключила вкладку: ${JSON.stringify(afterArrow)}`,
+  );
+  check(
+    await page.locator(`${cardDialog} #edit-client-panel-addresses`).isVisible(),
+    `[${engine} карточка] панель реквизитов скрыта на второй вкладке`,
+  );
+
+  // Значения не теряются при переключении вкладок.
+  await page.fill('#edit-client-reg-city', 'Минск');
+  await page.fill('#edit-client-reg-street', 'пр. Независимости');
+  await page.click(`${cardDialog} #edit-client-tab-main`);
+  await page.waitForTimeout(200);
+  check(
+    (await cardValue('#edit-client-first-name')) === 'Иван',
+    `[${engine} карточка] значения первой вкладки потеряны`,
+  );
+  await page.click(`${cardDialog} #edit-client-tab-addresses`);
+  await page.waitForTimeout(200);
+  check(
+    (await cardValue('#edit-client-reg-city')) === 'Минск' &&
+      (await cardValue('#edit-client-reg-street')) === 'пр. Независимости',
+    `[${engine} карточка] значения реквизитов потеряны при переключении вкладок`,
+  );
+
+  // Ошибка обязательного поля возвращает на первую вкладку и ставит фокус.
+  await page.click(`${cardDialog} #edit-client-tab-main`);
+  await page.waitForTimeout(200);
+  await page.fill('#edit-client-first-name', '   ');
+  await page.click(`${cardDialog} #edit-client-tab-addresses`);
+  await page.waitForTimeout(200);
+  patches.length = 0;
+  await submitCard();
+  await page.waitForTimeout(300);
+  check(
+    (await cardError('edit-client-firstName-error')) === 'Укажите имя',
+    `[${engine} карточка] сообщение по имени: ${await cardError('edit-client-firstName-error')}`,
+  );
+  check(
+    (await tabState()).map((tab) => tab.selected).join('|') === 'true|false',
+    `[${engine} карточка] окно осталось на вкладке «Реквизиты»`,
+  );
+  check(
+    (await page.evaluate(() => document.activeElement?.id)) === 'edit-client-first-name',
+    `[${engine} карточка] фокус не переведён на поле с ошибкой`,
+  );
+  check(patches.length === 0, `[${engine} карточка] при ошибке отправлен запрос`);
+
+  // Сохранение реквизитов: заполняем второй адрес, первый остаётся.
+  await page.fill('#edit-client-first-name', 'Иван');
+  await page.click(`${cardDialog} #edit-client-tab-addresses`);
+  await page.waitForTimeout(200);
+  await page.fill('#edit-client-res-city', 'Гомель');
+  patches.length = 0;
+  await submitCard();
+  await waitCardClosed();
+  await page.waitForSelector('.toast__message');
+  await page.waitForTimeout(300);
+  check(
+    patches.length === 1,
+    `[${engine} карточка] запросов сохранения реквизитов: ${patches.length}`,
+  );
+  const ivanovRow = clientRowById(clientIdByPhone('+375291112233'));
+  check(
+    ivanovRow?.reg_city === 'Минск' && ivanovRow?.res_city === 'Гомель',
+    `[${engine} карточка] реквизиты не записаны в базу: ${ivanovRow?.reg_city} / ${ivanovRow?.res_city}`,
+  );
+  check(
+    ivanovRow?.reg_postal_code === null,
+    `[${engine} карточка] незаполненное поле реквизитов не NULL: ${ivanovRow?.reg_postal_code}`,
+  );
+
+  // Повторное открытие: реквизиты на месте, незаполненное поле пустое.
+  await closeToastIfVisible();
+  await openCardByName('Иван');
+  await page.click(`${cardDialog} #edit-client-tab-addresses`);
+  await page.waitForTimeout(200);
+  check(
+    (await cardValue('#edit-client-reg-city')) === 'Минск' &&
+      (await cardValue('#edit-client-res-city')) === 'Гомель' &&
+      (await cardValue('#edit-client-reg-postal-code')) === '',
+    `[${engine} карточка] реквизиты не читаются из базы`,
+  );
+
+  // Чекбокс «Совпадает с адресом регистрации»: копирует адрес и блокирует поля.
+  const sameBox = page.locator(`${cardDialog} #edit-client-res-same`);
+  check(
+    (await sameBox.count()) === 1 &&
+      (await page.locator(`${cardDialog} .client-address__same`).first().textContent())?.trim() ===
+        'Совпадает с адресом регистрации',
+    `[${engine} карточка] чекбокс совпадения адресов не найден`,
+  );
+  check(
+    !(await sameBox.isChecked()),
+    `[${engine} карточка] чекбокс совпадения включён при разных адресах`,
+  );
+
+  await sameBox.check();
+  await page.waitForTimeout(250);
+  check(
+    (await cardValue('#edit-client-res-city')) === 'Минск' &&
+      (await cardValue('#edit-client-res-street')) === 'пр. Независимости',
+    `[${engine} карточка] адрес проживания не скопирован: ${await cardValue('#edit-client-res-city')}`,
+  );
+  check(
+    await page.locator('#edit-client-res-city').isDisabled(),
+    `[${engine} карточка] поля адреса проживания остались доступны для правки`,
+  );
+
+  // Правка адреса регистрации переносится в адрес проживания.
+  await page.fill('#edit-client-reg-city', 'Витебск');
+  await page.waitForTimeout(250);
+  check(
+    (await cardValue('#edit-client-res-city')) === 'Витебск',
+    `[${engine} карточка] адрес проживания не обновился за адресом регистрации`,
+  );
+
+  // Снятие чекбокса очищает адрес проживания и разблокирует поля.
+  await sameBox.uncheck();
+  await page.waitForTimeout(250);
+  check(
+    (await cardValue('#edit-client-res-city')) === '' &&
+      (await cardValue('#edit-client-res-street')) === '',
+    `[${engine} карточка] адрес проживания не очищен после снятия чекбокса`,
+  );
+  check(
+    await page.locator('#edit-client-res-city').isEnabled(),
+    `[${engine} карточка] поля адреса проживания остались заблокированы`,
+  );
+
+  // Линия — отдельный элемент над заголовком блока «Адрес проживания»,
+  // чекбокс — отдельной строкой под заголовком.
+  const addressLayout = await page.evaluate((selector) => {
+    const panel = document.querySelector(`${selector} #edit-client-panel-addresses`);
+    const blocks = panel ? Array.from(panel.querySelectorAll('.client-address')) : [];
+    const divider = panel?.querySelector('.client-address__divider') ?? null;
+    if (!panel || blocks.length < 2 || !divider) return null;
+
+    const registrationFields = blocks[0].querySelectorAll('.client-field__input');
+    const lastRegistrationField = registrationFields[registrationFields.length - 1];
+    const grid = blocks[1].querySelector('.client-address__grid');
+    const title = blocks[1].querySelector('.client-address__title');
+    const checkbox = blocks[1].querySelector('.client-address__same');
+    const firstField = blocks[1].querySelector('.client-field__input');
+    const rect = (element) => element.getBoundingClientRect();
+
+    return {
+      dividerWidth: Math.round(rect(divider).width),
+      panelWidth: Math.round(rect(panel).width),
+      dividerIsSeparate: divider.parentElement === panel,
+      titleBorderTop: getComputedStyle(title).borderTopWidth,
+      aboveGap: Math.round(rect(divider).top - rect(lastRegistrationField).bottom),
+      belowGap: Math.round(rect(title).top - rect(divider).bottom),
+      titleToCheckbox: Math.round(rect(checkbox).top - rect(title).bottom),
+      checkboxToField: Math.round(rect(grid).top - rect(checkbox).bottom),
+      leftAligned:
+        Math.abs(rect(checkbox).left - rect(title).left) <= 1 &&
+        Math.abs(rect(checkbox).left - rect(firstField).left) <= 1,
+    };
+  }, cardDialog);
+
+  check(addressLayout !== null, `[${engine} карточка] разделитель адресов не найден`);
+  check(
+    addressLayout?.dividerIsSeparate === true && addressLayout?.titleBorderTop === '0px',
+    `[${engine} карточка] линия не отдельным элементом над заголовком: ${JSON.stringify(addressLayout)}`,
+  );
+  check(
+    Boolean(addressLayout) &&
+      Math.abs(addressLayout.dividerWidth - addressLayout.panelWidth) <= 2,
+    `[${engine} карточка] линия не на всю ширину блока: ${JSON.stringify(addressLayout)}`,
+  );
+  check(
+    Boolean(addressLayout) &&
+      addressLayout.aboveGap >= 16 &&
+      addressLayout.aboveGap <= 20 &&
+      addressLayout.belowGap >= 16 &&
+      addressLayout.belowGap <= 20,
+    `[${engine} карточка] отступы линии: сверху ${addressLayout?.aboveGap}, снизу ${addressLayout?.belowGap}`,
+  );
+  check(
+    Boolean(addressLayout) &&
+      addressLayout.titleToCheckbox >= 8 &&
+      addressLayout.titleToCheckbox <= 12 &&
+      addressLayout.checkboxToField >= 8 &&
+      addressLayout.checkboxToField <= 12,
+    `[${engine} карточка] отступы чекбокса: от заголовка ${addressLayout?.titleToCheckbox}, до поля ${addressLayout?.checkboxToField}`,
+  );
+  check(
+    addressLayout?.leftAligned === true,
+    `[${engine} карточка] чекбокс не выровнен по левому краю: ${JSON.stringify(addressLayout)}`,
+  );
+
+  const addressesShot = `${OUT_DIR}/crm-clients-addresses-light-1440x900.png`;
+  await page.screenshot({ path: addressesShot });
+  notes.push(`скриншот: ${addressesShot}`);
+
+  // Правка только реквизитов: закрытие запрашивает подтверждение.
+  await page.fill('#edit-client-reg-city', 'Брест');
+  const confirmBeforeAddress = confirmCount;
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(200);
+  check(
+    confirmCount === confirmBeforeAddress + 1,
+    `[${engine} карточка] правка реквизитов не запросила подтверждение`,
+  );
+  await waitCardClosed();
+  await page.waitForTimeout(150);
+  check(
+    clientRowById(clientIdByPhone('+375291112233'))?.reg_city === 'Минск',
+    `[${engine} карточка] отказ от сохранения изменил реквизиты`,
   );
 
   await page.setViewportSize({ width: 1440, height: 900 });

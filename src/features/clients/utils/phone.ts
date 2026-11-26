@@ -102,3 +102,16 @@ export function formatPhoneForDisplay(phone: string): string {
   if (!match) return phone;
   return formatPhoneInput(match[1]);
 }
+
+/**
+ * Цифры национальной части из сохранённого значения `+375XXXXXXXXX`.
+ *
+ * Записи в старом формате маске не соответствуют, поэтому в карточке клиента
+ * от них остаётся только префикс `+375`: номер нужно ввести заново (раздел 5 ТЗ
+ * на редактирование). Пока пользователь не сохранил карточку, значение в базе
+ * не меняется.
+ */
+export function toPhoneDigits(phone: string | null | undefined): string {
+  const match = /^\+375(\d{9})$/.exec((phone ?? '').trim());
+  return match ? match[1] : '';
+}

@@ -21,19 +21,23 @@
 }
 
 .client-table__col--client {
-  width: 30%;
+  width: 24%;
 }
 
 .client-table__col--phone {
-  width: 21%;
+  width: 16%;
 }
 
 .client-table__col--email {
-  width: 22%;
+  width: 18%;
 }
 
 .client-table__col--responsible {
-  width: 27%;
+  width: 18%;
+}
+
+.client-table__col--comment {
+  width: 24%;
 }
 
 .client-table thead th {
@@ -79,6 +83,28 @@
 /* Мягкая подсветка всей строки без изменения геометрии и сдвига текста. */
 .client-table tbody tr:hover td {
   background-color: var(--clients-row-hover);
+}
+
+/* Строка открывает карточку клиента (раздел 4 ТЗ на редактирование). */
+.client-table tbody tr {
+  cursor: pointer;
+}
+
+/* ФИО — кнопка открытия карточки: выглядит как текст, доступна с клавиатуры. */
+.client-row-open {
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.client-row-open:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* Тонкий разделитель между строками с отступами от краёв контейнера. */
