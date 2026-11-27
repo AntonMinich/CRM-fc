@@ -277,8 +277,13 @@ function listAgendaInteractions(filters, currentUserId, now) {
 
 /** Общий набор раздела: задачи и взаимодействия, отфильтрованные и отсортированные. */
 function collectAgenda(filters, currentUserId, now) {
-  const tasks = listTasks(filters, { currentUserId, now }).map((task) => ({ ...task, kind: 'task' }));
-  const interactions = listAgendaInteractions(filters, currentUserId, now);
+  // Отбор по типу элемента: «Все», только задачи или только взаимодействия.
+  const kind = filters.kind ?? 'all';
+  const tasks =
+    kind === 'interaction'
+      ? []
+      : listTasks(filters, { currentUserId, now }).map((task) => ({ ...task, kind: 'task' }));
+  const interactions = kind === 'task' ? [] : listAgendaInteractions(filters, currentUserId, now);
   const from = filters.dateFrom ?? '';
   const to = filters.dateTo ?? '';
 

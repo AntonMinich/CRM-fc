@@ -20,7 +20,7 @@ import TasksPage from './pages/TasksPage';
  *   /crm/suppliers — поставщики (пусто),
  *
  * /service-desk — пустая рабочая область,
- * /tasks        — задачи: список и канбан вместе с взаимодействиями.
+ * /tasks        — «Мои задачи»: список и канбан вместе с взаимодействиями.
  */
 export default function App() {
   return (

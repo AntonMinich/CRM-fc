@@ -80,6 +80,8 @@ export function NotificationsBell() {
   const [hasMore, setHasMore] = useState(false);
   const [loadingMore, setLoadingMore] = useState(false);
   const [unread, setUnread] = useState(0);
+  /** Краткое сообщение об ошибке отметки одного уведомления. */
+  const [markError, setMarkError] = useState<string | null>(null);
   /** Карточки, открытые из уведомления поверх текущей страницы. */
   const [taskCardId, setTaskCardId] = useState<string | null>(null);
   const [interactionCardId, setInteractionCardId] = useState<string | null>(null);
@@ -117,8 +119,10 @@ export function NotificationsBell() {
   /** Порция списка: с нулевого смещения список заменяется целиком. */
   const load = useCallback(async (nextFilter: Filter, offset: number) => {
     const token = ++requestRef.current;
-    if (offset === 0) setStatus('loading');
-    else setLoadingMore(true);
+    if (offset === 0) {
+      setStatus('loading');
+      setMarkError(null);
+    } else setLoadingMore(true);
     try {
       const page = await fetchNotifications(nextFilter, offset);
       if (token !== requestRef.current) return;
@@ -167,6 +171,26 @@ export function NotificationsBell() {
     void markNotificationRead(id).catch(() => undefined);
   }, []);
 
+  /**
+   * Отметка одного уведомления кнопкой в строке: при ошибке строка остаётся
+   * непрочитанной, счётчик не меняется.
+   */
+  const markOne = useCallback(async (item: AppNotification) => {
+    setMarkError(null);
+    try {
+      await markNotificationRead(item.id);
+    } catch {
+      setMarkError('Не удалось отметить уведомление');
+      return;
+    }
+    setItems((previous) =>
+      previous.map((entry) =>
+        entry.id === item.id ? { ...entry, isRead: true, readAt: new Date().toISOString() } : entry,
+      ),
+    );
+    setUnread((value) => Math.max(0, value - 1));
+  }, []);
+
   /** «Прочитать все»: отметка на сервере и мгновенный счётчик. */
   const readAll = useCallback(() => {
     setItems((previous) =>
@@ -205,16 +229,18 @@ export function NotificationsBell() {
   };
 
   const groups = useMemo(() => {
+    // На вкладке «Непрочитанные» отмеченные строки уходят из списка.
+    const visible = filter === 'unread' ? items.filter((item) => !item.isRead) : items;
     const today: AppNotification[] = [];
     const earlier: AppNotification[] = [];
-    for (const item of items) {
+    for (const item of visible) {
       (groupOf(item.createdAt) === 'today' ? today : earlier).push(item);
     }
     return [
       { id: 'today', title: 'Сегодня', items: today },
       { id: 'earlier', title: 'Ранее', items: earlier },
     ] as const;
-  }, [items]);
+  }, [filter, items]);
 
   const badge = formatUnreadBadge(unread);
 
@@ -271,6 +297,12 @@ export function NotificationsBell() {
             ))}
           </div>
 
+          {markError ? (
+            <p className="notifications__mark-error" role="alert">
+              {markError}
+            </p>
+          ) : null}
+
           <div className="notifications__list" ref={listRef} onScroll={handleScroll}>
             {status === 'loading' ? <p className="notifications__state">Загрузка…</p> : null}
 
@@ -302,7 +334,7 @@ export function NotificationsBell() {
                       <p className="notifications__group-title">{group.title}</p>
                       <ul className="notifications__items">
                         {group.items.map((item) => (
-                          <li key={item.id}>
+                          <li className="notifications__row" key={item.id}>
                             <button
                               type="button"
                               className={`notifications__item${
@@ -321,6 +353,24 @@ export function NotificationsBell() {
                                 </span>
                               </span>
                             </button>
+
+                            {/* Отметка только этого уведомления: объект не открывается. */}
+                            {item.isRead ? null : (
+                              <button
+                                type="button"
+                                className="notifications__mark"
+                                title="Отметить прочитанным"
+                                aria-label={`Отметить прочитанным: ${item.title}`}
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  void markOne(item);
+                                }}
+                              >
+                                <svg viewBox="0 0 24 24" aria-hidden="true">
+                                  <path d="m5 13 4 4L19 7" />
+                                </svg>
+                              </button>
+                            )}
                           </li>
                         ))}
                       </ul>

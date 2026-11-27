@@ -1,5 +1,5 @@
 /**
- * Раздел «Задачи»: список и канбан задач вместе с плановыми взаимодействиями.
+ * Раздел «Мои задачи»: список и канбан задач вместе с плановыми взаимодействиями.
  *
  * Раскладка, контейнер и таблица повторяют вкладку «Взаимодействия»: те же
  * классы панели, фильтров и таблицы. Вид раздела запоминается в браузере.
@@ -80,6 +80,8 @@ export function TasksSection() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebouncedValue(search, SEARCH_DELAY_MS);
   const [status, setStatus] = useState('all');
+  /** Отбор по типу элемента: «Все», задачи или взаимодействия. */
+  const [kind, setKind] = useState('all');
   const [responsible, setResponsible] = useState('all');
   const [mine, setMine] = useState(true);
   const [dateFrom, setDateFrom] = useState('');
@@ -107,6 +109,7 @@ export function TasksSection() {
     () => ({
       search: debouncedSearch.trim(),
       status,
+      kind,
       responsible,
       mine,
       // Период относится к списку: в канбане поля дат не показываются.
@@ -115,13 +118,13 @@ export function TasksSection() {
       page,
       pageSize: AGENDA_PAGE_SIZE,
     }),
-    [dateFrom, dateTo, debouncedSearch, mine, page, responsible, status, view],
+    [dateFrom, dateTo, debouncedSearch, kind, mine, page, responsible, status, view],
   );
 
   // Поиск и фильтры возвращают список на первую страницу.
   useEffect(() => {
     setPage(1);
-  }, [dateFrom, dateTo, debouncedSearch, mine, responsible, status]);
+  }, [dateFrom, dateTo, debouncedSearch, kind, mine, responsible, status]);
 
   // Список раздела: страница по 15 записей, поиск работает по всем записям.
   useEffect(() => {
@@ -217,13 +220,14 @@ export function TasksSection() {
       setCardId(item.id);
       return;
     }
-    // Маршрут не меняется: после закрытия пользователь остаётся в «Задачах».
+    // Маршрут не меняется: после закрытия пользователь остаётся в «Моих задачах».
     setInteractionId(item.interactionId ?? item.id);
   }, []);
 
   const handleReset = useCallback(() => {
     setSearch('');
     setStatus('all');
+    setKind('all');
     setResponsible('all');
     setMine(true);
     setDateFrom('');
@@ -231,7 +235,11 @@ export function TasksSection() {
   }, []);
 
   const hasActiveFilters =
-    search.trim() !== '' || status !== 'all' || responsible !== 'all' || !mine;
+    search.trim() !== '' ||
+    status !== 'all' ||
+    kind !== 'all' ||
+    responsible !== 'all' ||
+    !mine;
 
   /** Сколько страниц в списке: по 15 записей. */
   const pageCount = Math.max(1, Math.ceil(total / AGENDA_PAGE_SIZE));
@@ -293,6 +301,20 @@ export function TasksSection() {
             </button>
           ))}
         </div>
+
+        <label className="interactions-board__field" htmlFor="tasks-kind">
+          <span className="interactions-board__label">Тип</span>
+          <select
+            id="tasks-kind"
+            className="interactions-board__control"
+            value={kind}
+            onChange={(event) => setKind(event.target.value)}
+          >
+            <option value="all">Все</option>
+            <option value="task">Задачи</option>
+            <option value="interaction">Взаимодействия</option>
+          </select>
+        </label>
 
         <label className="interactions-board__field" htmlFor="tasks-responsible">
           <span className="interactions-board__label">Ответственный</span>

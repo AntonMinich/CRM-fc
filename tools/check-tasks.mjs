@@ -546,6 +546,65 @@ try {
     `элементов ${doneFirst.payload?.items?.length}, всего ${doneFirst.payload?.total}`,
   );
 
+  // --- Отбор по типу элемента (задача или взаимодействие) ------------------
+  const allAgenda = await api('GET', '/api/agenda?mine=false&pageSize=200&kind=all');
+  const onlyTasks = await api('GET', '/api/agenda?mine=false&pageSize=200&kind=task');
+  const onlyInteractions = await api('GET', '/api/agenda?mine=false&pageSize=200&kind=interaction');
+  const taskKinds = (onlyTasks.payload?.items ?? []).map((item) => item.kind);
+  const interactionKinds = (onlyInteractions.payload?.items ?? []).map((item) => item.kind);
+  const allKinds = (allAgenda.payload?.items ?? []).map((item) => item.kind);
+
+  check(
+    taskKinds.length > 0 && taskKinds.every((value) => value === 'task'),
+    'Отбор «Задачи» возвращает только задачи',
+    `элементов ${taskKinds.length}`,
+  );
+  check(
+    interactionKinds.length > 0 && interactionKinds.every((value) => value === 'interaction'),
+    'Отбор «Взаимодействия» возвращает только взаимодействия',
+    `элементов ${interactionKinds.length}`,
+  );
+  check(
+    allKinds.includes('task') &&
+      allKinds.includes('interaction') &&
+      (onlyTasks.payload?.total ?? 0) + (onlyInteractions.payload?.total ?? 0) ===
+        (allAgenda.payload?.total ?? -1),
+    'Отбор «Все» возвращает оба типа',
+    `задачи ${onlyTasks.payload?.total}, взаимодействия ${onlyInteractions.payload?.total}, всего ${allAgenda.payload?.total}`,
+  );
+
+  const typedPage = await api(
+    'GET',
+    '/api/agenda?mine=true&kind=task&status=open&search=Порционная&page=2&pageSize=15',
+  );
+  check(
+    typedPage.payload?.items?.length === 2 &&
+      typedPage.payload?.total === 17 &&
+      typedPage.payload?.items?.every(
+        (item) => item.kind === 'task' && item.title.includes('Порционная'),
+      ),
+    'Отбор по типу работает с поиском, статусом, «Только мои» и пагинацией',
+    `элементов ${typedPage.payload?.items?.length}, всего ${typedPage.payload?.total}`,
+  );
+
+  const kindColumn = await api(
+    'GET',
+    '/api/agenda?mine=false&column=today&offset=0&limit=15&kind=interaction',
+  );
+  const kindColumnItems = kindColumn.payload?.items ?? [];
+  const columnsMatch = ['today', 'tomorrow', 'week', 'later', 'done'].every(
+    (name) =>
+      (onlyTasks.payload?.counts?.[name] ?? 0) + (onlyInteractions.payload?.counts?.[name] ?? 0) ===
+      (allAgenda.payload?.counts?.[name] ?? -1),
+  );
+  check(
+    kindColumnItems.length > 0 &&
+      kindColumnItems.every((item) => item.kind === 'interaction') &&
+      columnsMatch,
+    'В канбане отбор влияет на содержимое колонок и числа в шапках',
+    `в колонке ${kindColumnItems.length}, числа по типам сходятся: ${columnsMatch}`,
+  );
+
   withDb((db) => {
     db.prepare('UPDATE interactions SET planned_at = ? WHERE id = ?').run(
       iso(-hours(2)),

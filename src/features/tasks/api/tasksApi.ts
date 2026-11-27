@@ -1,5 +1,5 @@
 /**
- * Клиентская часть обращений к API задач и раздела «Задачи».
+ * Клиентская часть обращений к API задач и раздела «Мои задачи».
  * Контракт повторяет остальные разделы: сервер — snake_case, интерфейс — camelCase.
  */
 
@@ -125,6 +125,8 @@ export interface AgendaFilters {
   /** Период списка: по сроку задачи и времени начала взаимодействия. */
   dateFrom: string;
   dateTo: string;
+  /** Тип элемента: all, task или interaction. */
+  kind: string;
   page: number;
   pageSize: number;
 }
@@ -144,6 +146,7 @@ function agendaParams(filters: AgendaFilters): URLSearchParams {
     status: filters.status,
     responsible: filters.responsible,
     mine: filters.mine ? 'true' : 'false',
+    kind: filters.kind,
   });
   if (filters.dateFrom) params.set('dateFrom', filters.dateFrom);
   if (filters.dateTo) params.set('dateTo', filters.dateTo);

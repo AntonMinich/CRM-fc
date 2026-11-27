@@ -188,23 +188,95 @@
   flex-direction: column;
 }
 
+/* Строка: текст открывает объект, кнопка отметки — справа.
+   Под кнопку зарезервировано место, поэтому раскладка не прыгает. */
+.notifications__row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding-right: 44px;
+}
+
+.notifications__row:hover {
+  background-color: var(--nav-hover-bg);
+}
+
 .notifications__item {
   position: relative;
   display: flex;
+  flex: 1 1 auto;
   align-items: flex-start;
   gap: 10px;
-  width: 100%;
+  min-width: 0;
   padding: 10px 18px;
   text-align: left;
-}
-
-.notifications__item:hover {
-  background-color: var(--nav-hover-bg);
 }
 
 .notifications__item:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: -2px;
+}
+
+/* Кнопка отметки одного уведомления: 28 px, значок-галочка. */
+.notifications__mark {
+  position: absolute;
+  top: 50%;
+  right: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity 0.15s ease, color 0.15s ease, background-color 0.15s ease;
+}
+
+.notifications__mark svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Наведение на строку и фокус с клавиатуры показывают кнопку. */
+.notifications__row:hover .notifications__mark,
+.notifications__row:focus-within .notifications__mark,
+.notifications__mark:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.notifications__mark:hover {
+  background-color: var(--nav-hover-bg);
+  color: var(--accent);
+}
+
+.notifications__mark:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Сенсорные устройства и узкие окна: кнопка видна всегда. */
+@media (hover: none), (max-width: 559px) {
+  .notifications__mark {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* Краткое сообщение об ошибке отметки. */
+.notifications__mark-error {
+  margin: 0;
+  padding: 8px 18px 0;
+  color: var(--error-text);
+  font-size: 12px;
 }
 
 /* Непрочитанное: синяя точка слева и жирный заголовок. */

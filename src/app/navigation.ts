@@ -1,4 +1,4 @@
-/** Разделы оболочки: CRM, Service Desk и «Задачи». */
+/** Разделы оболочки: CRM, Service Desk и «Мои задачи». */
 
 export type SectionId = 'crm' | 'service-desk' | 'tasks';
 
@@ -15,7 +15,7 @@ export interface Section {
 export const SECTIONS: readonly Section[] = [
   { id: 'crm', path: '/crm', label: 'CRM', title: 'CRM' },
   { id: 'service-desk', path: '/service-desk', label: 'Service Desk', title: 'Service Desk' },
-  { id: 'tasks', path: '/tasks', label: 'Задачи', title: 'Задачи' },
+  { id: 'tasks', path: '/tasks', label: 'Мои задачи', title: 'Мои задачи' },
 ];
 
 /** Корень приложения ведёт в CRM. */

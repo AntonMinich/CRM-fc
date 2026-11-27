@@ -9,7 +9,7 @@ export type TaskStatusView = 'open' | 'overdue' | 'done';
 /** Колонка канбана по сроку задачи. */
 export type TaskColumn = 'today' | 'tomorrow' | 'week' | 'later' | 'done';
 
-/** Тип элемента раздела «Задачи». */
+/** Тип элемента раздела «Мои задачи». */
 export type AgendaKind = 'task' | 'interaction';
 
 /** Статус элемента раздела: задачи и взаимодействия вместе. */
@@ -73,7 +73,7 @@ export interface Task {
   updatedAt: string;
 }
 
-/** Элемент раздела «Задачи»: задача или взаимодействие (только для чтения). */
+/** Элемент раздела «Мои задачи»: задача или взаимодействие (только для чтения). */
 export interface AgendaItem {
   id: string;
   kind: AgendaKind;
@@ -91,7 +91,7 @@ export interface AgendaItem {
   isDone: boolean;
 }
 
-/** Страница раздела «Задачи» с числами по колонкам. */
+/** Страница раздела «Мои задачи» с числами по колонкам. */
 export interface AgendaPage {
   items: AgendaItem[];
   total: number;

@@ -37,7 +37,7 @@
  *   GET   /api/tasks/{id}
  *   PATCH /api/tasks/{id}
  *   POST  /api/tasks/{id}/close
- *   GET   /api/agenda?view=list|kanban&column=&offset=&limit=&dateFrom=&dateTo=
+ *   GET   /api/agenda?view=list|kanban&column=&offset=&limit=&kind=all|task|interaction&dateFrom=&dateTo=
  *
  * Значения `id`, `created_at`, `updated_at` задаёт сервер; клиент их не передаёт.
  * Внутренние ошибки базы наружу не выводятся.
@@ -903,6 +903,11 @@ function resetTaskNotifications(taskId) {
   deleteNotificationsBySourcePrefix(`task-overdue:${taskId}`);
 }
 
+/** Тип элемента раздела: «Все», только задачи или только взаимодействия. */
+function readAgendaKind(value) {
+  return value === 'task' || value === 'interaction' ? value : 'all';
+}
+
 /** Фильтры раздела «Задачи» из строки запроса. */
 function readTaskFilters(params) {
   const size = Number.parseInt(params.get('pageSize') ?? '', 10);
@@ -912,6 +917,7 @@ function readTaskFilters(params) {
     status: params.get('status') ?? 'all',
     responsible: params.get('responsible') ?? 'all',
     mine: params.get('mine') === 'true',
+    kind: readAgendaKind(params.get('kind')),
     dateFrom: params.get('dateFrom') ?? '',
     dateTo: params.get('dateTo') ?? '',
     page: Number.parseInt(params.get('page') ?? '1', 10),
