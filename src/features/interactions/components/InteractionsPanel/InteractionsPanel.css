@@ -185,6 +185,18 @@
   color: var(--accent);
 }
 
+/* «С просрочкой»: янтарный, отличается от красного «Просрочено» и зелёного
+   «Выполнена»; компактный, чтобы стоять вторым тегом в строке. */
+.interaction-status--late {
+  padding: 1px 6px;
+  border-color: #e0b164;
+  background-color: rgba(224, 177, 100, 0.16);
+  color: #f3d195;
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
 /* Пометки «Перенесено» и «Изменено». */
 .interaction-mark {
   display: block;

@@ -10,6 +10,20 @@
   color: var(--text-muted);
 }
 
+/* Статус с тегом «С просрочкой» и строка длительности просрочки (только чтение). */
+.task-card-status {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-card-late {
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
 .task-card-link {
   padding: 0;
   border: none;

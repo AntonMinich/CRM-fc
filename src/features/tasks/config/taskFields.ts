@@ -21,6 +21,28 @@ export const TASK_STATUS_LABELS: Record<TaskStatusView, string> = {
   done: 'Выполнена',
 };
 
+/** Название тега задачи, закрытой позже срока. */
+export const TASK_LATE_LABEL = 'С просрочкой';
+
+/**
+ * Длительность просрочки: «5 мин», «2 ч 15 мин», «1 д 3 ч».
+ * Нулевые части не показываются: меньше часа — минуты, меньше суток — часы и минуты.
+ */
+export function formatLateDuration(minutes: number): string {
+  const total = Number.isFinite(minutes) && minutes > 0 ? Math.round(minutes) : 0;
+  if (total < 60) return `${total} мин`;
+
+  if (total < 24 * 60) {
+    const hoursPart = Math.floor(total / 60);
+    const minutesPart = total % 60;
+    return minutesPart === 0 ? `${hoursPart} ч` : `${hoursPart} ч ${minutesPart} мин`;
+  }
+
+  const daysPart = Math.floor(total / (24 * 60));
+  const hoursRest = Math.floor((total % (24 * 60)) / 60);
+  return hoursRest === 0 ? `${daysPart} д` : `${daysPart} д ${hoursRest} ч`;
+}
+
 /** Быстрые фильтры статуса. */
 export const TASK_FILTERS: readonly { value: TaskStatusView | 'all'; label: string }[] = [
   { value: 'all', label: 'Все' },

@@ -20,8 +20,9 @@ import {
   toDateTimeLocalValue,
 } from '../../../interactions/utils/interactionDisplay';
 import { TaskApiError, closeTask, fetchTask, updateTask } from '../../api/tasksApi';
-import { TASK_LIMITS, TASK_STATUS_LABELS } from '../../config/taskFields';
+import { TASK_LIMITS, TASK_STATUS_LABELS, formatLateDuration } from '../../config/taskFields';
 import type { Task } from '../../types';
+import { TaskLateTag } from '../TaskLateTag/TaskLateTag';
 import '../../../clients/components/ClientForm/ClientForm.css';
 
 interface TaskCardModalProps {
@@ -380,11 +381,20 @@ export function TaskCardModal({ taskId, onClose, onChanged }: TaskCardModalProps
 
             <div className="client-field client-field--span-6">
               <span className="client-field__label">Статус</span>
-              <span
-                className={`interaction-status interaction-status--${statusClass(task.statusView)}`}
-              >
-                {TASK_STATUS_LABELS[task.statusView]}
+              <span className="task-card-status">
+                <span
+                  className={`interaction-status interaction-status--${statusClass(task.statusView)}`}
+                >
+                  {TASK_STATUS_LABELS[task.statusView]}
+                </span>
+                {/* Задача закрыта позже срока: рядом с «Выполнена» тег просрочки. */}
+                {task.late ? <TaskLateTag minutes={task.lateMinutes} /> : null}
               </span>
+              {task.late ? (
+                <span className="task-card-late">
+                  Просрочка: {formatLateDuration(task.lateMinutes)}
+                </span>
+              ) : null}
             </div>
 
             <label className="client-field client-field--span-6" htmlFor="card-task-description">

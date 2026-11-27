@@ -15,7 +15,7 @@ import {
   INTERACTION_IN_PROGRESS_MS,
   interactionStatus,
 } from '../server/interactionsRepository.mjs';
-import { kanbanColumn, taskStatus } from '../server/tasksRepository.mjs';
+import { kanbanColumn, taskLate, taskStatus } from '../server/tasksRepository.mjs';
 
 const PROJECT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const DB_FILE = join(PROJECT_ROOT, 'data', `_check-tasks-${process.pid}.db`);
@@ -622,6 +622,109 @@ try {
   check(
     (overdueFilter.payload?.items ?? []).some((item) => item.id === interaction.payload.id),
     'Серверный фильтр «Просрочено» учитывает час после начала',
+  );
+
+  // --- Просрочка выполнения задачи ----------------------------------------
+  const fixedDue = '2026-01-05T10:00:00.000Z';
+  const lateRow = taskLate({
+    status: 'done',
+    due_at: fixedDue,
+    completed_at: '2026-01-05T12:15:00.000Z',
+  });
+  check(
+    lateRow.late === true && lateRow.late_minutes === 135,
+    'Закрытая позже срока задача получает признак просрочки и длительность',
+    `просрочка ${lateRow.late}, минут ${lateRow.late_minutes}`,
+  );
+  check(
+    taskLate({ status: 'done', due_at: fixedDue, completed_at: fixedDue }).late === false,
+    'Закрытая ровно в срок задача просрочку не получает',
+  );
+  check(
+    taskLate({ status: 'done', due_at: fixedDue, completed_at: '2026-01-05T09:30:00.000Z' })
+      .late === false,
+    'Закрытая раньше срока задача просрочку не получает',
+  );
+  const openRow = taskStatus({ status: 'open', due_at: fixedDue }, Date.parse(fixedDue) + hours(1));
+  check(
+    taskLate({ status: 'open', due_at: fixedDue, completed_at: null }).late === false &&
+      openRow === 'overdue',
+    'У открытой задачи просрочки выполнения нет, остаётся статус «Просрочена»',
+  );
+
+  const lateTask = await api('POST', '/api/tasks', {
+    title: 'Закрыта с просрочкой',
+    due_at: iso(hours(6)),
+  });
+  const onTimeTask = await api('POST', '/api/tasks', {
+    title: 'Закрыта в срок',
+    due_at: iso(hours(6)),
+  });
+  const openTask = await api('POST', '/api/tasks', { title: 'Открыта после срока', due_at: iso(hours(6)) });
+  await api('POST', `/api/tasks/${lateTask.payload.id}/close`);
+  await api('POST', `/api/tasks/${onTimeTask.payload.id}/close`);
+
+  withDb((db) => {
+    const update = db.prepare('UPDATE tasks SET due_at = ?, completed_at = ? WHERE id = ?');
+    // Выполнена через 2 ч 15 мин после срока.
+    update.run(iso(-hours(3)), iso(-hours(0.75)), lateTask.payload.id);
+    update.run(iso(-hours(3)), iso(-hours(3)), onTimeTask.payload.id);
+    db.prepare('UPDATE tasks SET due_at = ? WHERE id = ?').run(iso(-hours(3)), openTask.payload.id);
+  });
+
+  const lateSingle = await api('GET', `/api/tasks/${lateTask.payload.id}`);
+  const onTimeSingle = await api('GET', `/api/tasks/${onTimeTask.payload.id}`);
+  const openSingle = await api('GET', `/api/tasks/${openTask.payload.id}`);
+  check(
+    lateSingle.payload?.late === true &&
+      lateSingle.payload?.late_minutes === 135 &&
+      onTimeSingle.payload?.late === false &&
+      onTimeSingle.payload?.late_minutes === 0 &&
+      openSingle.payload?.late === false &&
+      openSingle.payload?.status_view === 'overdue',
+    'Карточка задачи отдаёт признак и длительность просрочки',
+    `просрочка ${lateSingle.payload?.late_minutes} мин, в срок ${onTimeSingle.payload?.late}`,
+  );
+
+  const lateList = await api('GET', '/api/tasks?search=Закрыта&mine=true&page=1&pageSize=50');
+  const listLate = (lateList.payload?.items ?? []).find((item) => item.id === lateTask.payload.id);
+  const listOnTime = (lateList.payload?.items ?? []).find((item) => item.id === onTimeTask.payload.id);
+  check(
+    listLate?.late === true &&
+      listLate?.late_minutes === 135 &&
+      listOnTime?.late === false &&
+      listOnTime?.late_minutes === 0,
+    'Список задач отдаёт признак и длительность просрочки',
+    `просрочка ${listLate?.late_minutes} мин, в срок ${listOnTime?.late}`,
+  );
+
+  const doneColumn = await api('GET', '/api/agenda?mine=false&column=done&offset=0&limit=100');
+  const columnLate = (doneColumn.payload?.items ?? []).find((item) => item.id === lateTask.payload.id);
+  const columnOnTime = (doneColumn.payload?.items ?? []).find(
+    (item) => item.id === onTimeTask.payload.id,
+  );
+  const interactionItemLate = (doneColumn.payload?.items ?? []).find(
+    (item) => item.kind === 'interaction',
+  );
+  check(
+    columnLate?.late === true &&
+      columnLate?.late_minutes === 135 &&
+      columnOnTime?.late === false &&
+      !('late' in (interactionItemLate ?? {})),
+    'Колонка канбана отдаёт просрочку только у задач',
+    `просрочка ${columnLate?.late_minutes} мин, у взаимодействия ${interactionItemLate?.late}`,
+  );
+
+  const agendaLate = await api('GET', '/api/agenda?mine=false&pageSize=200');
+  const agendaItems = agendaLate.payload?.items ?? [];
+  const agendaItem = agendaItems.find((item) => item.id === lateTask.payload.id);
+  const agendaInteraction = agendaItems.find((item) => item.kind === 'interaction');
+  check(
+    agendaItem?.late === true &&
+      agendaItem?.late_minutes === 135 &&
+      !('late' in (agendaInteraction ?? {})),
+    'Список раздела «Мои задачи» отдаёт просрочку только у задач',
+    `просрочка ${agendaItem?.late_minutes} мин, у взаимодействия ${agendaInteraction?.late}`,
   );
 } finally {
   await app.close().catch(() => {});

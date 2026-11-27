@@ -52,6 +52,23 @@ export function taskStatus(row, now = Date.now()) {
   return due <= now ? 'overdue' : 'open';
 }
 
+/**
+ * Просрочка выполнения: задача закрыта позже срока. Длительность — в минутах,
+ * считается из сохранённых срока и времени выполнения, новых полей нет.
+ */
+export function taskLate(row) {
+  if (row.status !== 'done') return { late: false, late_minutes: 0 };
+  const due = Date.parse(row.due_at ?? '');
+  const completed = Date.parse(row.completed_at ?? '');
+  if (!Number.isFinite(due) || !Number.isFinite(completed)) {
+    return { late: false, late_minutes: 0 };
+  }
+  // Ровно в срок задача выполнена вовремя: просрочка строго больше нуля.
+  const diff = completed - due;
+  if (!(diff > 0)) return { late: false, late_minutes: 0 };
+  return { late: true, late_minutes: Math.max(1, Math.round(diff / 60000)) };
+}
+
 /** Начало суток в часовом поясе приложения. */
 function dayStart(time) {
   const date = new Date(time);
@@ -96,6 +113,7 @@ export function kanbanColumn(dueAt, status, now = Date.now()) {
 /** Строка базы -> объект для API. */
 export function toTaskResponse(row, now = Date.now()) {
   const status = taskStatus(row, now);
+  const late = taskLate(row);
   return {
     id: row.id,
     title: row.title,
@@ -111,6 +129,9 @@ export function toTaskResponse(row, now = Date.now()) {
       row.responsible_middle_name,
     ),
     completed_at: row.completed_at ?? null,
+    /** Просрочка выполнения: только у задач, закрытых позже срока. */
+    late: late.late,
+    late_minutes: late.late_minutes,
     interaction_id: row.interaction_id ?? null,
     client_id: row.client_id ?? null,
     supplier_id: row.supplier_id ?? null,

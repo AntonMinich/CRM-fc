@@ -27,6 +27,10 @@ export interface TaskDto {
   responsible_user_id: string;
   responsible_full_name: string;
   completed_at: string | null;
+  /** Просрочка выполнения: задача закрыта позже срока. */
+  late: boolean;
+  /** Длительность просрочки в минутах; 0 — просрочки нет. */
+  late_minutes: number;
   interaction_id: string | null;
   client_id: string | null;
   supplier_id: string | null;
@@ -38,9 +42,13 @@ export interface TaskDto {
 }
 
 /** Ответ сервера: элемент раздела. */
-export interface AgendaItemDto extends Omit<TaskDto, 'status_view'> {
+export interface AgendaItemDto
+  extends Omit<TaskDto, 'status_view' | 'late' | 'late_minutes'> {
   kind: AgendaKind;
   status_view: AgendaStatusView;
+  /** Просрочка есть только у задач: у взаимодействий поля нет. */
+  late?: boolean;
+  late_minutes?: number;
 }
 
 /** Ответ сервера: страница раздела. */
@@ -65,6 +73,10 @@ export interface Task {
   responsibleUserId: string;
   responsibleFullName: string;
   completedAt: string | null;
+  /** Просрочка выполнения: задача закрыта позже срока. */
+  late: boolean;
+  /** Длительность просрочки в минутах; 0 — просрочки нет. */
+  lateMinutes: number;
   interactionId: string | null;
   counterpartyType: 'client' | 'supplier' | null;
   counterpartyId: string | null;
@@ -82,6 +94,10 @@ export interface AgendaItem {
   dueAt: string | null;
   statusView: AgendaStatusView;
   column: TaskColumn;
+  /** Просрочка выполнения: есть только у задач, закрытых позже срока. */
+  late: boolean;
+  /** Длительность просрочки в минутах; 0 — просрочки нет. */
+  lateMinutes: number;
   responsibleUserId: string;
   responsibleFullName: string;
   counterpartyName: string | null;

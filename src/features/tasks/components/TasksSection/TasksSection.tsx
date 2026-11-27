@@ -23,6 +23,7 @@ import {
 } from '../../config/taskFields';
 import type { AgendaItem, AgendaKind, TaskColumn } from '../../types';
 import { InteractionOverlay, TaskCardModal } from '../TaskCardModal/TaskCardModal';
+import { TaskLateTag } from '../TaskLateTag/TaskLateTag';
 import { TaskModal } from '../TaskModal/TaskModal';
 import '../../../interactions/components/InteractionsPanel/InteractionsPanel.css';
 import '../../../interactions/components/InteractionsBoard/InteractionsBoard.css';
@@ -447,12 +448,16 @@ export function TasksSection() {
                   </td>
                   <td>{item.counterpartyName ?? '—'}</td>
                   <td>
-                    <span
-                      className={`interaction-status interaction-status--${statusClass(
-                        item.statusView,
-                      )}`}
-                    >
-                      {AGENDA_STATUS_LABELS[item.statusView] ?? ''}
+                    <span className="tasks-table__status">
+                      <span
+                        className={`interaction-status interaction-status--${statusClass(
+                          item.statusView,
+                        )}`}
+                      >
+                        {AGENDA_STATUS_LABELS[item.statusView] ?? ''}
+                      </span>
+                      {/* Второй тег — только у задач, закрытых позже срока. */}
+                      {item.late ? <TaskLateTag minutes={item.lateMinutes} /> : null}
                     </span>
                   </td>
                   <td>{item.responsibleFullName}</td>
@@ -519,7 +524,11 @@ export function TasksSection() {
                       key={`${item.kind}-${item.id}`}
                       onClick={() => openItem(item)}
                     >
-                      <AgendaTypeTag kind={item.kind} />
+                      <span className="task-card__tags">
+                        <AgendaTypeTag kind={item.kind} />
+                        {/* «С просрочкой» — в одной строке с меткой типа. */}
+                        {item.late ? <TaskLateTag minutes={item.lateMinutes} /> : null}
+                      </span>
                       <span className="task-card__title">{item.title}</span>
                       <span className="task-card__due">{formatDateTime(item.dueAt)}</span>
                       {item.counterpartyName ? (
