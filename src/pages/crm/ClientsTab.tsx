@@ -150,7 +150,7 @@ export function ClientsTab() {
   }, [reload, showToast]);
 
   return (
-    <div className="crm-view">
+    <div className="crm-view crm-view--table">
       <ClientToolbar
         search={search}
         onSearchChange={setSearch}

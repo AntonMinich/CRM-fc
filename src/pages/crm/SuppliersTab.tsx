@@ -179,7 +179,7 @@ export function SuppliersTab() {
   }, [entry, entryOwnerId]);
 
   return (
-    <div className="crm-view">
+    <div className="crm-view crm-view--table">
       <SupplierToolbar
         search={search}
         onSearchChange={setSearch}
