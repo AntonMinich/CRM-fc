@@ -391,11 +391,15 @@ export function InteractionModal({
 
       {mode !== 'view' ? (
         <form className="client-form" onSubmit={handleSubmit} noValidate>
-          <div className="client-form__fields">
+          <div className="client-form__fields interaction-form__fields">
             {counterpartyField}
 
+            {/* Дата: в «плане» и «переносе» — первая строка, в «результате» — вторая. */}
             {mode !== 'result' ? (
-              <label className="client-field" htmlFor="interaction-planned-at">
+              <label
+                className="client-field interaction-field--span-6"
+                htmlFor="interaction-planned-at"
+              >
                 <span className="client-field__label">
                   {mode === 'reschedule' ? 'Новая дата и время' : 'Дата и время'}{' '}
                   <span className="client-field__required">*</span>
@@ -417,31 +421,14 @@ export function InteractionModal({
                   </span>
                 ) : null}
               </label>
-            ) : (
-              <label className="client-field" htmlFor="interaction-occurred-at">
-                <span className="client-field__label">
-                  Дата и время факта <span className="client-field__required">*</span>
-                </span>
-                <input
-                  id="interaction-occurred-at"
-                  className="client-field__input"
-                  type="datetime-local"
-                  ref={refs.occurredAt}
-                  value={values.occurredAt}
-                  onChange={(event) => updateField('occurredAt', event.target.value)}
-                  aria-invalid={Boolean(errors.occurredAt)}
-                  aria-describedby={errors.occurredAt ? 'interaction-occurred-at-error' : undefined}
-                  disabled={submitting}
-                />
-                {errors.occurredAt ? (
-                  <span className="client-field__error" id="interaction-occurred-at-error">
-                    {errors.occurredAt}
-                  </span>
-                ) : null}
-              </label>
-            )}
+            ) : null}
 
-            <label className="client-field" htmlFor="interaction-type">
+            <label
+              className={`client-field ${
+                mode === 'result' ? 'interaction-field--span-4' : 'interaction-field--span-6'
+              }`}
+              htmlFor="interaction-type"
+            >
               <span className="client-field__label">
                 Тип <span className="client-field__required">*</span>
               </span>
@@ -468,7 +455,12 @@ export function InteractionModal({
               ) : null}
             </label>
 
-            <label className="client-field" htmlFor="interaction-title">
+            <label
+              className={`client-field ${
+                mode === 'result' ? 'interaction-field--span-8' : 'interaction-field--span-7'
+              }`}
+              htmlFor="interaction-title"
+            >
               <span className="client-field__label">
                 Тема <span className="client-field__required">*</span>
               </span>
@@ -490,8 +482,36 @@ export function InteractionModal({
               ) : null}
             </label>
 
+            {/* В «результате» дата факта идёт второй строкой — рядом с контактным лицом. */}
+            {mode === 'result' ? (
+              <label
+                className="client-field interaction-field--span-6"
+                htmlFor="interaction-occurred-at"
+              >
+                <span className="client-field__label">
+                  Дата и время факта <span className="client-field__required">*</span>
+                </span>
+                <input
+                  id="interaction-occurred-at"
+                  className="client-field__input"
+                  type="datetime-local"
+                  ref={refs.occurredAt}
+                  value={values.occurredAt}
+                  onChange={(event) => updateField('occurredAt', event.target.value)}
+                  aria-invalid={Boolean(errors.occurredAt)}
+                  aria-describedby={errors.occurredAt ? 'interaction-occurred-at-error' : undefined}
+                  disabled={submitting}
+                />
+                {errors.occurredAt ? (
+                  <span className="client-field__error" id="interaction-occurred-at-error">
+                    {errors.occurredAt}
+                  </span>
+                ) : null}
+              </label>
+            ) : null}
+
             {mode === 'plan' ? (
-              <label className="client-field" htmlFor="interaction-responsible">
+              <label className="client-field interaction-field--span-5" htmlFor="interaction-responsible">
                 <span className="client-field__label">
                   Ответственный <span className="client-field__required">*</span>
                 </span>
@@ -523,7 +543,7 @@ export function InteractionModal({
             ) : null}
 
             {owner === 'supplier' ? (
-              <label className="client-field" htmlFor="interaction-contact">
+              <label className="client-field interaction-field--span-6" htmlFor="interaction-contact">
                 <span className="client-field__label">
                   Контактное лицо
                   {mode === 'result' ? <span className="client-field__required"> *</span> : null}
@@ -558,16 +578,65 @@ export function InteractionModal({
               </label>
             ) : null}
 
+            {mode === 'plan' || mode === 'reschedule' ? (
+              <fieldset
+                className={
+                  owner === 'supplier'
+                    ? 'interaction-reminder interaction-field--span-6'
+                    : 'interaction-reminder'
+                }
+              >
+                <legend className="client-address__title">Напоминание</legend>
+                <label className="client-field" htmlFor="interaction-reminder-option">
+                  <span className="client-field__label">Когда напомнить</span>
+                  <select
+                    id="interaction-reminder-option"
+                    className="client-field__input"
+                    value={values.reminderOption}
+                    onChange={(event) => updateField('reminderOption', event.target.value)}
+                    disabled={submitting}
+                  >
+                    {REMINDER_OPTIONS.map((item) => (
+                      <option key={item.value} value={item.value}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {values.reminderOption === 'custom' ? (
+                  <label className="client-field" htmlFor="interaction-remind-at">
+                    <span className="client-field__label">Своё время напоминания</span>
+                    <input
+                      id="interaction-remind-at"
+                      className="client-field__input"
+                      type="datetime-local"
+                      ref={refs.remindAt}
+                      value={values.remindAt}
+                      onChange={(event) => updateField('remindAt', event.target.value)}
+                      aria-invalid={Boolean(errors.remindAt)}
+                      aria-describedby={errors.remindAt ? 'interaction-remind-at-error' : undefined}
+                      disabled={submitting}
+                    />
+                  </label>
+                ) : null}
+                {errors.remindAt ? (
+                  <span className="client-field__error" id="interaction-remind-at-error">
+                    {errors.remindAt}
+                  </span>
+                ) : null}
+              </fieldset>
+            ) : null}
+
             {mode === 'plan' ? (
               <label className="client-field" htmlFor="interaction-plan-comment">
                 <span className="client-field__label">Комментарий к плану</span>
                 <textarea
                   id="interaction-plan-comment"
-                  className="client-field__input client-field__textarea"
+                  className="client-field__input client-field__textarea interaction-form__textarea--short"
                   ref={refs.planComment}
                   value={values.planComment}
                   onChange={(event) => updateField('planComment', event.target.value)}
-                  rows={4}
+                  rows={2}
                   maxLength={INTERACTION_LIMITS.planComment}
                   disabled={submitting}
                 />
@@ -609,11 +678,11 @@ export function InteractionModal({
                   <span className="client-field__label">Следующий шаг</span>
                   <textarea
                     id="interaction-next-step"
-                    className="client-field__input client-field__textarea"
+                    className="client-field__input client-field__textarea interaction-form__textarea--short"
                     ref={refs.nextStep}
                     value={values.nextStep}
                     onChange={(event) => updateField('nextStep', event.target.value)}
-                    rows={3}
+                    rows={2}
                     maxLength={INTERACTION_LIMITS.nextStep}
                     disabled={submitting}
                   />
@@ -642,53 +711,7 @@ export function InteractionModal({
                 </span>
               </label>
             ) : null}
-
-
-            {mode === 'plan' || mode === 'reschedule' ? (
-              <fieldset className="interaction-reminder">
-                <legend className="client-address__title">Напоминание</legend>
-                <label className="client-field" htmlFor="interaction-reminder-option">
-                  <span className="client-field__label">Когда напомнить</span>
-                  <select
-                    id="interaction-reminder-option"
-                    className="client-field__input"
-                    value={values.reminderOption}
-                    onChange={(event) => updateField('reminderOption', event.target.value)}
-                    disabled={submitting}
-                  >
-                    {REMINDER_OPTIONS.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {values.reminderOption === 'custom' ? (
-                  <label className="client-field" htmlFor="interaction-remind-at">
-                    <span className="client-field__label">Своё время напоминания</span>
-                    <input
-                      id="interaction-remind-at"
-                      className="client-field__input"
-                      type="datetime-local"
-                      ref={refs.remindAt}
-                      value={values.remindAt}
-                      onChange={(event) => updateField('remindAt', event.target.value)}
-                      aria-invalid={Boolean(errors.remindAt)}
-                      aria-describedby={errors.remindAt ? 'interaction-remind-at-error' : undefined}
-                      disabled={submitting}
-                    />
-                  </label>
-                ) : null}
-                {errors.remindAt ? (
-                  <span className="client-field__error" id="interaction-remind-at-error">
-                    {errors.remindAt}
-                  </span>
-                ) : null}
-              </fieldset>
-            ) : null}
           </div>
-
-          <p className="client-form__hint">* — обязательные поля</p>
 
           {formError ? (
             <p className="client-form__error" role="alert">

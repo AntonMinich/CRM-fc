@@ -316,7 +316,10 @@ export function InteractionsBoard() {
         </div>
       ) : (
         <>
-          <label className="client-field" htmlFor="interaction-counterparty-type">
+          <label
+            className="client-field interaction-field--span-4"
+            htmlFor="interaction-counterparty-type"
+          >
             <span className="client-field__label">
               Контрагент <span className="client-field__required">*</span>
             </span>
@@ -333,7 +336,10 @@ export function InteractionsBoard() {
             </select>
           </label>
 
-          <label className="client-field" htmlFor="interaction-counterparty-search">
+          <label
+            className="client-field interaction-field--span-8"
+            htmlFor="interaction-counterparty-search"
+          >
             <span className="client-field__label">
               {counterpartyType === 'client' ? 'ФИО клиента' : 'Наименование поставщика'}
             </span>

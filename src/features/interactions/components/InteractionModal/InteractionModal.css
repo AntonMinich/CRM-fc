@@ -1,7 +1,39 @@
-/* Окно взаимодействия: ширина как у остальных окон, просмотр и история. */
+/* Окно взаимодействия: ширина — общая для всех карточек (--modal-width). */
 
-.client-modal.client-modal--interaction {
-  width: 640px;
+/* Форма окна: двенадцать колонок, чтобы поля вставали в строки по два.
+   По умолчанию поле занимает всю ширину, пропорции задают модификаторы. */
+.interaction-form__fields {
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 12px var(--field-padding-x);
+}
+
+.interaction-form__fields > * {
+  grid-column: 1 / -1;
+}
+
+.interaction-field--span-4 {
+  grid-column: span 4;
+}
+
+.interaction-field--span-5 {
+  grid-column: span 5;
+}
+
+.interaction-field--span-6 {
+  grid-column: span 6;
+}
+
+.interaction-field--span-7 {
+  grid-column: span 7;
+}
+
+.interaction-field--span-8 {
+  grid-column: span 8;
+}
+
+/* Компактные многострочные поля: около двух строк (базовое — 96 px). */
+.interaction-form__textarea--short {
+  min-height: 68px;
 }
 
 /* Просмотр: пары «поле — значение». */
@@ -90,4 +122,19 @@
   border: none;
   display: grid;
   gap: 12px;
+}
+
+/* Уже 560 px: поля окна идут по одному в строке. */
+@media (max-width: 559px) {
+  .interaction-form__fields {
+    grid-template-columns: 1fr;
+  }
+
+  .interaction-field--span-4,
+  .interaction-field--span-5,
+  .interaction-field--span-6,
+  .interaction-field--span-7,
+  .interaction-field--span-8 {
+    grid-column: 1 / -1;
+  }
 }

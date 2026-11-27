@@ -132,11 +132,6 @@
   color: var(--error-text);
 }
 
-/* Карточка клиента: ширина 960 px на всех вкладках, чтобы окно не меняло размер. */
-.client-modal.client-modal--edit {
-  width: 960px;
-}
-
 .client-tab:focus-visible {
   outline: 2px solid var(--focus-ring);
   outline-offset: 2px;
