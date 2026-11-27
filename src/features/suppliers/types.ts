@@ -126,7 +126,80 @@ export interface SupplierFormValues {
 export type SupplierFormErrors = Partial<Record<keyof SupplierFormValues, string>>;
 
 /** Вкладка окна поставщика. */
-export type SupplierTab = 'main' | 'details';
+export type SupplierTab = 'main' | 'details' | 'contacts' | 'interactions';
+
+/** Статус контактного лица. */
+export type SupplierContactStatus = 'active' | 'inactive';
+
+/** Ответ сервера: контактное лицо в формате контракта API (snake_case). */
+export interface SupplierContactDto {
+  id: string;
+  supplier_id: string;
+  last_name: string | null;
+  first_name: string;
+  middle_name: string | null;
+  position: string;
+  phone: string;
+  email: string | null;
+  status: SupplierContactStatus;
+  is_primary: boolean;
+  comment: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** Ответ сервера со списком контактов: количество нужно заголовку вкладки. */
+export interface SupplierContactsDto {
+  items: SupplierContactDto[];
+  total: number;
+}
+
+/** Контактное лицо для интерфейса. */
+export interface SupplierContact {
+  id: string;
+  supplierId: string;
+  lastName: string | null;
+  firstName: string;
+  middleName: string | null;
+  position: string;
+  phone: string;
+  email: string | null;
+  status: SupplierContactStatus;
+  isPrimary: boolean;
+  comment: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** Список контактов для интерфейса. */
+export interface SupplierContacts {
+  items: SupplierContact[];
+  total: number;
+}
+
+/** Части имени найденного контакта: приходят в ошибке по телефону. */
+export interface ContactName {
+  id: string;
+  lastName: string | null;
+  firstName: string;
+  middleName: string | null;
+}
+
+/** Поля формы контакта. */
+export interface SupplierContactFormValues {
+  lastName: string;
+  firstName: string;
+  middleName: string;
+  position: string;
+  phone: string;
+  email: string;
+  status: SupplierContactStatus;
+  isPrimary: boolean;
+  comment: string;
+}
+
+/** Ошибки полей формы контакта. */
+export type SupplierContactFormErrors = Partial<Record<keyof SupplierContactFormValues, string>>;
 
 /** Состояние загрузки данных из API. */
 export type LoadStatus = 'loading' | 'ready' | 'error';

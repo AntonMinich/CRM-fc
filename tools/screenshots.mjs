@@ -31,8 +31,8 @@ const PORT = 4173;
 const BASE_URL = `http://localhost:${PORT}`;
 const DIST_DIR = join(PROJECT_ROOT, 'dist');
 
-const THEMES = ['light', 'dark'];
-const CRM_TAB_LABELS = ['Сделки', 'Клиенты', 'Поставщики'];
+const THEME = 'dark';
+const CRM_TAB_LABELS = ['Сделки', 'Клиенты', 'Поставщики', 'Взаимодействия'];
 const ROUTES = [
   { name: 'crm-deals', path: '/crm/deals', title: 'CRM', tab: 'Сделки', shot: 'crm' },
   { name: 'crm-clients', path: '/crm/clients', title: 'CRM', tab: 'Клиенты', shot: 'crm-clients' },
@@ -124,21 +124,17 @@ async function collect(page) {
     const nav = document.querySelector('.sidebar__nav');
     const crmTabs = document.querySelector('.crm-tabs');
     const main = document.querySelector('main');
-    const switchEl = document.querySelector('[role="switch"]');
     const decor = document.querySelectorAll('.workspace-background__decor');
     const sidebar = document.querySelector('.sidebar');
-    const logo = document.querySelector('.sidebar__logo-image--light');
+    const logo = document.querySelector('.sidebar__logo-image');
     const subtitle = document.querySelector('.header__subtitle');
     const avatar = document.querySelector('.header__avatar');
-    const track = switchEl?.querySelector('.theme-switch__track');
     const createButton = document.querySelector('.create-button');
     const board = document.querySelector('.kanban-board');
     const columns = Array.from(document.querySelectorAll('.kanban-column'));
     const headers = columns.map((column) => column.querySelector('.column-header'));
     const trim = (value) => (value ?? '').replace(/\u00A0/g, ' ').trim();
     return {
-      theme: root.getAttribute('data-theme'),
-      colorScheme: root.style.colorScheme,
       scrollWidth: root.scrollWidth,
       clientWidth: root.clientWidth,
       title: document.querySelector('h1')?.textContent ?? null,
@@ -150,10 +146,6 @@ async function collect(page) {
       navLabelsTruncated: Array.from(document.querySelectorAll('.nav-item__label')).some(
         (element) => element.scrollWidth > element.clientWidth + 1,
       ),
-      switchLabelTruncated: (() => {
-        const element = document.querySelector('.theme-switch__label');
-        return element ? element.scrollWidth > element.clientWidth + 1 : false;
-      })(),
       activeLabel: nav?.querySelector('[aria-current="page"]')?.textContent?.trim() ?? null,
       activeCount: nav ? nav.querySelectorAll('[aria-current="page"]').length : 0,
       tabLabels: crmTabs
@@ -168,8 +160,6 @@ async function collect(page) {
       })(),
       workspaceNodes: main ? main.children.length : 0,
       workspaceText: main ? main.textContent.trim() : '',
-      switchChecked: switchEl?.getAttribute('aria-checked') ?? null,
-      switchName: switchEl?.textContent?.trim() ?? null,
       decorCount: decor.length,
       decorPointerEvents: decor[0] ? getComputedStyle(decor[0]).pointerEvents : null,
       sidebarWidth: sidebar ? Math.round(sidebar.getBoundingClientRect().width) : 0,
@@ -185,10 +175,6 @@ async function collect(page) {
       navItemHeight: Math.round(
         document.querySelector('.nav-item')?.getBoundingClientRect().height ?? 0,
       ),
-      switchSize: track
-        ? [Math.round(track.getBoundingClientRect().width),
-           Math.round(track.getBoundingClientRect().height)]
-        : null,
       avatarVisible: avatar ? getComputedStyle(avatar).display !== 'none' : false,
       // Канбан и кнопка «Создать» (только в разделе CRM).
       hasCreateButton: createButton !== null,
@@ -332,14 +318,12 @@ async function collect(page) {
   });
 }
 
-async function checkLayout(page, engine, theme, viewport, route) {
+async function checkLayout(page, engine, viewport, route) {
   await page.goto(`${BASE_URL}${route.path}`, { waitUntil: 'load' });
   await page.waitForLoadState('networkidle');
   const data = await collect(page);
-  const label = `[${engine} ${theme} ${viewport.name} ${route.path}]`;
+  const label = `[${engine} ${viewport.name} ${route.path}]`;
 
-  check(data.theme === theme, `${label} тема в DOM: ${data.theme}`);
-  check(data.colorScheme === theme, `${label} color-scheme: ${data.colorScheme}`);
   check(data.title === route.title, `${label} заголовок: ${data.title}`);
   check(data.navLinks === 2, `${label} пунктов меню: ${data.navLinks}`);
   check(
@@ -465,10 +449,7 @@ async function checkLayout(page, engine, theme, viewport, route) {
     check(data.columnCount === 0, `${label} в Service Desk столбцов: ${data.columnCount}`);
   }
 
-  check(data.switchChecked === String(theme === 'dark'), `${label} aria-checked`);
-  check(data.switchName === 'Тёмная тема', `${label} имя переключателя: ${data.switchName}`);
   check(!data.navLabelsTruncated, `${label} подпись пункта меню обрезана`);
-  check(!data.switchLabelTruncated, `${label} подпись переключателя обрезана`);
 
   if (viewport.name === '1440x900') {
     check(data.sidebarWidth === 248, `${label} ширина панели: ${data.sidebarWidth}`);
@@ -477,10 +458,6 @@ async function checkLayout(page, engine, theme, viewport, route) {
     check(
       data.logoBox && data.logoBox[0] === 190 && data.logoBox[1] === 76,
       `${label} контейнер логотипа: ${data.logoBox}`,
-    );
-    check(
-      data.switchSize && data.switchSize[0] === 42 && data.switchSize[1] === 24,
-      `${label} размер переключателя: ${data.switchSize}`,
     );
 
     if (route.name === 'crm-deals') {
@@ -525,7 +502,7 @@ async function checkLayout(page, engine, theme, viewport, route) {
   }
 
   if (viewport.shot && engine === 'chromium' && route.shot) {
-    const file = `${OUT_DIR}/${route.shot}-${theme}-${viewport.name}.png`;
+    const file = `${OUT_DIR}/${route.shot}-${THEME}-${viewport.name}.png`;
     await page.screenshot({ path: file });
     notes.push(`скриншот: ${file}`);
   }
@@ -540,15 +517,14 @@ async function checkBehaviour(browser, engine) {
     }
   });
   page.on('pageerror', (error) => {
+    // WebKit сообщает прерванный запрос (отмена при уходе со страницы) как
+    // ошибку доступа: сами данные при этом загружаются.
+    if (error.message.includes('due to access control checks')) return;
     problems.push(`[${engine} поведение] pageerror: ${error.message}`);
   });
 
   await page.goto(`${BASE_URL}/crm`, { waitUntil: 'load' });
-  const beforeTheme = (await collect(page)).theme;
-  await page.click('[role="switch"]');
-  const afterToggle = (await collect(page)).theme;
-  await page.reload({ waitUntil: 'load' });
-  const afterReload = (await collect(page)).theme;
+  await page.waitForFunction(() => document.querySelector('h1')?.textContent === 'CRM');
 
   await page.click('a[href="/service-desk"]');
   await page.waitForURL('**/service-desk');
@@ -561,12 +537,9 @@ async function checkBehaviour(browser, engine) {
   await page.waitForFunction(() => document.querySelector('h1')?.textContent === 'CRM');
   const afterBack = await collect(page);
 
-  check(beforeTheme === 'light', `[${engine}] стартовая тема: ${beforeTheme}`);
-  check(afterToggle === 'dark', `[${engine}] тема после переключения: ${afterToggle}`);
-  check(afterReload === 'dark', `[${engine}] тема после перезагрузки: ${afterReload}`);
   check(
-    afterNavigation.theme === 'dark' && afterNavigation.title === 'Service Desk',
-    `[${engine}] раздел после перехода: ${afterNavigation.title}, тема ${afterNavigation.theme}`,
+    afterNavigation.title === 'Service Desk',
+    `[${engine}] раздел после перехода: ${afterNavigation.title}`,
   );
   check(
     afterBack.title === 'CRM' && afterBack.activeLabel === 'CRM',
@@ -636,7 +609,7 @@ async function checkBehaviour(browser, engine) {
     const focusable = await page.evaluate(() =>
       Array.from(
         document.querySelectorAll(
-          'a.nav-item, [role="switch"], a.crm-tab, .create-button, .kanban-board',
+          'a.nav-item, a.crm-tab, .create-button, .kanban-board',
         ),
       ).map((element) => {
         element.focus();
@@ -665,7 +638,6 @@ async function checkBehaviour(browser, engine) {
         await page.evaluate(() => {
           const element = document.activeElement;
           if (!element) return 'нет';
-          if (element.matches('[role="switch"]')) return 'переключатель';
           if (element.matches('.create-button')) return 'Создать';
           if (element.matches('.kanban-board')) return 'доска';
           return element.textContent?.trim() || element.tagName;
@@ -674,7 +646,16 @@ async function checkBehaviour(browser, engine) {
     }
     check(
       order.join('|') ===
-        ['CRM', 'Service Desk', 'переключатель', 'Сделки', 'Клиенты', 'Поставщики', 'Создать', 'доска'].join(
+        [
+          'CRM',
+          'Service Desk',
+          'Сделки',
+          'Клиенты',
+          'Поставщики',
+          'Взаимодействия',
+          'Создать',
+          'доска',
+        ].join(
           '|',
         ),
       `[${engine}] порядок Tab: ${order.join(' → ')}`,
@@ -685,16 +666,18 @@ async function checkBehaviour(browser, engine) {
 }
 
 /** Проверяет оформление уведомления об успешном создании (раздел 6 ТЗ). */
-function checkToastStyles(styles, theme, engine) {
-  const label = `[${engine} клиенты ${theme}]`;
+function checkToastStyles(styles, engine) {
+  const label = `[${engine} клиенты]`;
   if (!styles) {
     check(false, `${label} уведомление об успешном создании не показано`);
     return;
   }
-  const palette =
-    theme === 'dark'
-      ? { background: '#1b3040', border: '#47b99a', accent: '#71e6bd', icon: '#234c48' }
-      : { background: '#ffffff', border: '#8cc9b8', accent: '#087f65', icon: '#dff5ec' };
+  const palette = {
+    background: '#1b3040',
+    border: '#47b99a',
+    accent: '#71e6bd',
+    icon: '#234c48',
+  };
 
   check(styles.text === CLIENT_CREATED_TEXT, `${label} текст уведомления: "${styles.text}"`);
   check(
@@ -734,18 +717,18 @@ function checkToastStyles(styles, theme, engine) {
 }
 
 /** Проверяет мягкое оформление таблицы клиентов (раздел 5 ТЗ). */
-function checkTableStyles(styles, theme, engine) {
-  const label = `[${engine} клиенты ${theme}]`;
+function checkTableStyles(styles, engine) {
+  const label = `[${engine} клиенты]`;
   if (!styles) {
     check(false, `${label} таблица клиентов не найдена`);
     return;
   }
-  const surface = theme === 'dark' ? 'rgba(15, 25, 48, 0.76)' : 'rgba(255, 255, 255, 0.72)';
-  const head = theme === 'dark' ? 'rgba(26, 40, 71, 0.84)' : 'rgba(232, 238, 248, 0.8)';
-  const border = theme === 'dark' ? 'rgba(155, 181, 224, 0.17)' : 'rgba(80, 102, 144, 0.18)';
-  const line = theme === 'dark' ? 'rgba(155, 181, 224, 0.08)' : 'rgba(80, 102, 144, 0.08)';
-  const primary = theme === 'dark' ? '#f2f4ff' : '#101954';
-  const secondary = theme === 'dark' ? '#a5b2cc' : '#65718b';
+  const surface = 'rgba(15, 25, 48, 0.76)';
+  const head = 'rgba(26, 40, 71, 0.84)';
+  const border = 'rgba(155, 181, 224, 0.17)';
+  const line = 'rgba(155, 181, 224, 0.08)';
+  const primary = '#f2f4ff';
+  const secondary = '#a5b2cc';
 
   check(
     sameColor(styles.wrapBackground, surface),
@@ -912,7 +895,8 @@ async function checkClientsFlow(browser) {
     })),
   );
   check(
-    windowTabs.map((tab) => tab.label).join('|') === 'Установочные данные|Реквизиты' &&
+    windowTabs.map((tab) => tab.label).join('|') ===
+      'Установочные данные|Реквизиты|Взаимодействия' &&
       windowTabs[0]?.selected === 'true' &&
       windowTabs[1]?.selected === 'false',
     `[${engine} клиенты] вкладки окна: ${JSON.stringify(windowTabs)}`,
@@ -1160,7 +1144,7 @@ async function checkClientsFlow(browser) {
   await page.fill('#create-client-last-name', '  Иванов  ');
   await page.fill('#create-client-middle-name', 'Иванович');
   await page.fill('#create-client-email', 'client@example.com');
-  const modalShot = `${OUT_DIR}/crm-clients-modal-light-1440x900.png`;
+  const modalShot = `${OUT_DIR}/crm-clients-modal-dark-1440x900.png`;
   await page.screenshot({ path: modalShot });
   notes.push(`скриншот: ${modalShot}`);
   await submit();
@@ -1171,15 +1155,15 @@ async function checkClientsFlow(browser) {
   // Ждём завершения анимации появления, чтобы измерить итоговое положение.
   await page.waitForTimeout(300);
   data = await collect(page);
-  checkToastStyles(data.toastStyles, 'light', engine);
+  checkToastStyles(data.toastStyles, engine);
   check(
     (await page.inputValue('.client-search')) === '',
     `[${engine} клиенты] строка поиска не очищена после создания`,
   );
 
-  const toastShotLight = `${OUT_DIR}/crm-clients-toast-light-1440x900.png`;
-  await page.screenshot({ path: toastShotLight });
-  notes.push(`скриншот: ${toastShotLight}`);
+  const toastShot = `${OUT_DIR}/crm-clients-toast-dark-1440x900.png`;
+  await page.screenshot({ path: toastShot });
+  notes.push(`скриншот: ${toastShot}`);
 
   // Пока указатель над уведомлением, срок показа приостановлен.
   await page.hover('.toast__message');
@@ -1387,9 +1371,9 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] крестик не закрыл уведомление`,
   );
 
-  // --- Мягкое оформление таблицы и подсветка строки (светлая тема) --------
+  // --- Мягкое оформление таблицы и подсветка строки -----------------------
   data = await collect(page);
-  checkTableStyles(data.clientTableStyles, 'light', engine);
+  checkTableStyles(data.clientTableStyles, engine);
 
   const rowHeightBefore = await page.evaluate(() => {
     const row = document.querySelector('.client-table tbody tr');
@@ -1408,7 +1392,7 @@ async function checkClientsFlow(browser) {
     };
   });
   check(
-    sameColor(hovered.background, 'rgba(52, 89, 189, 0.055)'),
+    sameColor(hovered.background, 'rgba(105, 148, 231, 0.085)'),
     `[${engine} клиенты] подсветка строки: ${hovered.background}`,
   );
   check(
@@ -1420,30 +1404,16 @@ async function checkClientsFlow(browser) {
     `[${engine} клиенты] у строки нет курсора-указателя: ${hovered.cursor}`,
   );
 
-  const hoverShotLight = `${OUT_DIR}/crm-clients-hover-light-1440x900.png`;
-  await page.screenshot({ path: hoverShotLight });
-  notes.push(`скриншот: ${hoverShotLight}`);
+  const hoverShot = `${OUT_DIR}/crm-clients-hover-dark-1440x900.png`;
+  await page.screenshot({ path: hoverShot });
+  notes.push(`скриншот: ${hoverShot}`);
   await page.mouse.move(5, 5);
 
-  const listShotLight = `${OUT_DIR}/crm-clients-list-light-1440x900.png`;
-  await page.screenshot({ path: listShotLight });
-  notes.push(`скриншот: ${listShotLight}`);
+  const listShot = `${OUT_DIR}/crm-clients-list-dark-1440x900.png`;
+  await page.screenshot({ path: listShot });
+  notes.push(`скриншот: ${listShot}`);
 
-  // --- Тёмная тема: данные и оформление сохраняются -----------------------
-  await page.click('[role="switch"]');
-  await page.waitForFunction(
-    () => document.documentElement.getAttribute('data-theme') === 'dark',
-  );
-  await page.waitForTimeout(250);
-  data = await collect(page);
-  check(data.theme === 'dark', `[${engine} клиенты] тема не переключилась: ${data.theme}`);
-  check(
-    data.clientRows.length === 2,
-    `[${engine} клиенты] при смене темы потеряны строки: ${data.clientRows.length}`,
-  );
-  checkTableStyles(data.clientTableStyles, 'dark', engine);
-
-  // --- Уведомление и подсветка строки в тёмной теме -----------------------
+  // --- Второй клиент: список пополняется, уведомление закрывается ---------
   await openModal();
   await page.fill('#create-client-first-name', 'Мария');
   await page.fill('#create-client-phone', '+375293334455');
@@ -1452,47 +1422,13 @@ async function checkClientsFlow(browser) {
   await page.waitForSelector('.toast__message');
   await page.waitForTimeout(300);
   await page.waitForFunction(() => document.querySelectorAll('.client-table tbody tr').length === 3);
-  data = await collect(page);
-  checkToastStyles(data.toastStyles, 'dark', engine);
-
-  const toastShotDark = `${OUT_DIR}/crm-clients-toast-dark-1440x900.png`;
-  await page.screenshot({ path: toastShotDark });
-  notes.push(`скриншот: ${toastShotDark}`);
 
   await page.click('.toast__close');
   await page.waitForTimeout(250);
   check(
     (await page.locator('.toast__message').count()) === 0,
-    `[${engine} клиенты] крестик не закрыл уведомление в тёмной теме`,
+    `[${engine} клиенты] крестик не закрыл уведомление`,
   );
-
-  await page.hover('.client-table tbody tr:nth-child(2)');
-  await page.waitForTimeout(300);
-  const hoveredDark = await page.evaluate(() => {
-    const row = document.querySelectorAll('.client-table tbody tr')[1];
-    const cell = row?.querySelector('td');
-    return {
-      background: cell ? getComputedStyle(cell).backgroundColor : null,
-      height: row ? Math.round(row.getBoundingClientRect().height) : 0,
-    };
-  });
-  check(
-    sameColor(hoveredDark.background, 'rgba(105, 148, 231, 0.085)'),
-    `[${engine} клиенты] подсветка строки в тёмной теме: ${hoveredDark.background}`,
-  );
-  check(
-    hoveredDark.height === rowHeightBefore,
-    `[${engine} клиенты] подсветка в тёмной теме меняет высоту: ${rowHeightBefore} -> ${hoveredDark.height}`,
-  );
-
-  const hoverShotDark = `${OUT_DIR}/crm-clients-hover-dark-1440x900.png`;
-  await page.screenshot({ path: hoverShotDark });
-  notes.push(`скриншот: ${hoverShotDark}`);
-  await page.mouse.move(5, 5);
-
-  const listShotDark = `${OUT_DIR}/crm-clients-list-dark-1440x900.png`;
-  await page.screenshot({ path: listShotDark });
-  notes.push(`скриншот: ${listShotDark}`);
 
   // --- Узкий экран: таблица прокручивается, уведомление с отступами 16 px ---
   await page.setViewportSize({ width: 390, height: 844 });
@@ -1694,15 +1630,6 @@ async function checkClientsFlow(browser) {
     conn.close();
   };
 
-  // Снимки карточки делаются в светлой теме, как и остальные снимки списка.
-  if ((await page.evaluate(() => document.documentElement.getAttribute('data-theme'))) !== 'light') {
-    await page.click('[role="switch"]');
-    await page.waitForFunction(
-      () => document.documentElement.getAttribute('data-theme') === 'light',
-    );
-    await page.waitForTimeout(200);
-  }
-
   // Уведомление от предыдущего шага сценария не должно мешать проверкам карточки.
   await closeToastIfVisible();
 
@@ -1762,9 +1689,9 @@ async function checkClientsFlow(browser) {
     `[${engine} карточка] порядок полей: ${cardFieldOrder.join('|')}`,
   );
 
-  const cardShotLight = `${OUT_DIR}/crm-clients-card-light-1440x900.png`;
-  await page.screenshot({ path: cardShotLight });
-  notes.push(`скриншот: ${cardShotLight}`);
+  const cardShot = `${OUT_DIR}/crm-clients-card-dark-1440x900.png`;
+  await page.screenshot({ path: cardShot });
+  notes.push(`скриншот: ${cardShot}`);
 
   // Escape без правок закрывает окно без подтверждения и без запроса.
   await page.keyboard.press('Escape');
@@ -2014,23 +1941,6 @@ async function checkClientsFlow(browser) {
     `[${engine} карточка] удалённый клиент остался в списке`,
   );
 
-  // Карточка в тёмной теме.
-  await closeToastIfVisible();
-  await page.click('[role="switch"]');
-  await page.waitForFunction(() => document.documentElement.getAttribute('data-theme') === 'dark');
-  await page.waitForTimeout(200);
-  await openCardByName('Иван');
-  const cardShotDark = `${OUT_DIR}/crm-clients-card-dark-1440x900.png`;
-  await page.screenshot({ path: cardShotDark });
-  notes.push(`скриншот: ${cardShotDark}`);
-  await page.keyboard.press('Escape');
-  await waitCardClosed();
-  await page.click('[role="switch"]');
-  await page.waitForFunction(
-    () => document.documentElement.getAttribute('data-theme') === 'light',
-  );
-  await page.waitForTimeout(150);
-
   // --- Вкладки карточки: «Реквизиты» ---------------------------------------
   await closeToastIfVisible();
   await openCardByName('Иван');
@@ -2046,7 +1956,7 @@ async function checkClientsFlow(browser) {
     );
 
   check(
-    (await tabState()).map((tab) => tab.selected).join('|') === 'true|false',
+    (await tabState()).map((tab) => tab.selected).slice(0, 2).join('|') === 'true|false',
     `[${engine} карточка] при открытии активна не первая вкладка: ${JSON.stringify(await tabState())}`,
   );
   check(
@@ -2060,7 +1970,8 @@ async function checkClientsFlow(browser) {
   await page.waitForTimeout(200);
   const afterArrow = await tabState();
   check(
-    afterArrow.map((tab) => tab.selected).join('|') === 'false|true' && afterArrow[1]?.focused,
+    afterArrow.map((tab) => tab.selected).slice(0, 2).join('|') === 'false|true' &&
+      afterArrow[1]?.focused,
     `[${engine} карточка] стрелка не переключила вкладку: ${JSON.stringify(afterArrow)}`,
   );
   check(
@@ -2099,7 +2010,7 @@ async function checkClientsFlow(browser) {
     `[${engine} карточка] сообщение по имени: ${await cardError('edit-client-firstName-error')}`,
   );
   check(
-    (await tabState()).map((tab) => tab.selected).join('|') === 'true|false',
+    (await tabState()).map((tab) => tab.selected).slice(0, 2).join('|') === 'true|false',
     `[${engine} карточка] окно осталось на вкладке «Реквизиты»`,
   );
   check(
@@ -2252,7 +2163,7 @@ async function checkClientsFlow(browser) {
     `[${engine} карточка] чекбокс не выровнен по левому краю: ${JSON.stringify(addressLayout)}`,
   );
 
-  const addressesShot = `${OUT_DIR}/crm-clients-addresses-light-1440x900.png`;
+  const addressesShot = `${OUT_DIR}/crm-clients-addresses-dark-1440x900.png`;
   await page.screenshot({ path: addressesShot });
   notes.push(`скриншот: ${addressesShot}`);
 
@@ -2310,7 +2221,7 @@ async function checkCreateButton(browser, engine) {
   );
 
   if (engine === 'chromium') {
-    const file = `${OUT_DIR}/crm-light-notice-1440x900.png`;
+    const file = `${OUT_DIR}/crm-dark-notice-1440x900.png`;
     await page.screenshot({ path: file });
     notes.push(`скриншот: ${file}`);
   }
@@ -2396,8 +2307,10 @@ async function checkSuppliersFlow(browser) {
     })),
   );
   check(
-    tabs.map((tab) => tab.label).join('|') === 'Установочные данные|Реквизиты' &&
-      tabs[0]?.selected === 'true',
+    tabs.map((tab) => tab.label).join('|') ===
+      'Установочные данные|Реквизиты|Контактные лица (0)|Взаимодействия' &&
+      tabs[0]?.selected === 'true' &&
+      tabs[2]?.selected === 'false',
     `[${engine} поставщики] вкладки окна: ${JSON.stringify(tabs)}`,
   );
   check(
@@ -2687,53 +2600,43 @@ async function main() {
     for (const engine of ENGINES) {
       const browser = await engine.type.launch();
       try {
-        for (const theme of THEMES) {
-          for (const viewport of engine.viewports) {
-            const context = await browser.newContext({
-              viewport: { width: viewport.width, height: viewport.height },
-              deviceScaleFactor: 1,
-            });
-            await context.addInitScript((value) => {
-              window.localStorage.setItem('fincode-theme', value);
-            }, theme);
+        for (const viewport of engine.viewports) {
+          const context = await browser.newContext({
+            viewport: { width: viewport.width, height: viewport.height },
+            deviceScaleFactor: 1,
+          });
 
-            const page = await context.newPage();
-            page.on('console', (message) => {
-              if (message.type() === 'error') {
-                problems.push(
-                  `[${engine.name} ${theme} ${viewport.name}] console: ${message.text()}`,
-                );
-              }
-            });
-            page.on('pageerror', (error) => {
-              // WebKit сообщает прерванный запрос списка (отмена при уходе со
-              // страницы) как ошибку доступа: сами данные при этом загружаются.
-              if (error.message.includes('due to access control checks')) return;
-              problems.push(
-                `[${engine.name} ${theme} ${viewport.name}] pageerror: ${error.message}`,
-              );
-            });
-            page.on('requestfailed', (request) => {
-              problems.push(
-                `[${engine.name} ${theme} ${viewport.name}] запрос не выполнен: ` +
-                  `${request.url()} (${request.failure()?.errorText})`,
-              );
-            });
-            page.on('response', (response) => {
-              if (response.status() >= 400) {
-                problems.push(
-                  `[${engine.name} ${theme} ${viewport.name}] HTTP ${response.status()} ` +
-                    response.url(),
-                );
-              }
-            });
-
-            for (const route of ROUTES) {
-              await checkLayout(page, engine.name, theme, viewport, route);
+          const page = await context.newPage();
+          page.on('console', (message) => {
+            if (message.type() === 'error') {
+              problems.push(`[${engine.name} ${viewport.name}] console: ${message.text()}`);
             }
+          });
+          page.on('pageerror', (error) => {
+            // WebKit сообщает прерванный запрос списка (отмена при уходе со
+            // страницы) как ошибку доступа: сами данные при этом загружаются.
+            if (error.message.includes('due to access control checks')) return;
+            problems.push(`[${engine.name} ${viewport.name}] pageerror: ${error.message}`);
+          });
+          page.on('requestfailed', (request) => {
+            problems.push(
+              `[${engine.name} ${viewport.name}] запрос не выполнен: ` +
+                `${request.url()} (${request.failure()?.errorText})`,
+            );
+          });
+          page.on('response', (response) => {
+            if (response.status() >= 400) {
+              problems.push(
+                `[${engine.name} ${viewport.name}] HTTP ${response.status()} ` + response.url(),
+              );
+            }
+          });
 
-            await context.close();
+          for (const route of ROUTES) {
+            await checkLayout(page, engine.name, viewport, route);
           }
+
+          await context.close();
         }
 
         await checkBehaviour(browser, engine.name);

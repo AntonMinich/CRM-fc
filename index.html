@@ -1,32 +1,15 @@
 <!doctype html>
-<html lang="ru" data-theme="light">
+<html lang="ru">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="dark" />
     <title>Fincode — CRM и Service Desk</title>
     <meta
       name="description"
       content="Fincode: оболочка корпоративного приложения с разделами CRM и Service Desk"
     />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <script>
-      // Тема применяется до первого отображения интерфейса, чтобы не было
-      // вспышки светлого фона. Ключ и значения совпадают с src/theme/theme.ts.
-      (function () {
-        var theme = 'light';
-        try {
-          var stored = window.localStorage.getItem('fincode-theme');
-          if (stored === 'dark' || stored === 'light') {
-            theme = stored;
-          }
-        } catch (error) {
-          /* localStorage недоступен — остаётся светлая тема */
-        }
-        document.documentElement.setAttribute('data-theme', theme);
-        document.documentElement.style.colorScheme = theme;
-      })();
-    </script>
   </head>
   <body>
     <div id="root"></div>

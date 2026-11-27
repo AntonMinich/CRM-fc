@@ -11,9 +11,16 @@ import {
   SupplierApiError,
   createSupplier,
   fetchSupplier,
+  fetchSupplierContacts,
   updateSupplier,
 } from '../../api/suppliersApi';
-import type { DuplicatePhoneWarning, LoadStatus, Supplier } from '../../types';
+import type {
+  DuplicatePhoneWarning,
+  LoadStatus,
+  Supplier,
+  SupplierContact,
+  SupplierTab,
+} from '../../types';
 import {
   DUPLICATE_UNP_MESSAGE,
   EMPTY_SUPPLIER_FORM,
@@ -26,6 +33,8 @@ import {
 } from '../../utils/validateSupplierForm';
 import { SupplierFormFields } from '../SupplierForm/SupplierFormFields';
 import { useSupplierForm } from '../SupplierForm/useSupplierForm';
+import { SupplierContactModal } from '../SupplierContactModal/SupplierContactModal';
+import type { InteractionEntry } from '../../../interactions/types';
 import '../../../clients/components/ClientForm/ClientForm.css';
 import './SupplierModal.css';
 
@@ -66,6 +75,12 @@ interface SupplierModalProps {
   onNotFound: () => void;
   /** Переход в карточку поставщика с таким же УНП. */
   onOpenDuplicate: (supplierId: string) => void;
+  /** Вкладка, которая открывается после загрузки карточки. */
+  initialTab?: SupplierTab;
+  /** Переход в карточку другого поставщика на вкладке «Контактные лица». */
+  onOpenSupplierContacts: (supplierId: string) => void;
+  /** Переход из напоминания: открыть взаимодействие в нужном режиме. */
+  entry?: InteractionEntry | null;
 }
 
 export function SupplierModal({
@@ -78,6 +93,9 @@ export function SupplierModal({
   onSavedWithWarning,
   onNotFound,
   onOpenDuplicate,
+  initialTab = 'main',
+  onOpenSupplierContacts,
+  entry = null,
 }: SupplierModalProps) {
   const isCreate = supplierId === null;
   const dialogRef = useRef<HTMLDialogElement | null>(null);
@@ -99,6 +117,16 @@ export function SupplierModal({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  /** Контакты поставщика: количество показывается в заголовке вкладки. */
+  const [contacts, setContacts] = useState<SupplierContact[]>([]);
+  /** Число просроченных взаимодействий: показывается в заголовке вкладки. */
+  const [overdue, setOverdue] = useState(0);
+  const [contactsStatus, setContactsStatus] = useState<LoadStatus>(isCreate ? 'ready' : 'loading');
+  const [contactsToken, setContactsToken] = useState(0);
+  /** Открытое окно контакта: null — закрыто, contact: null — создание. */
+  const [contactModal, setContactModal] = useState<{ contact: SupplierContact | null } | null>(
+    null,
+  );
 
   // Окно открыто сразу при монтировании.
   useEffect(() => {
@@ -135,6 +163,7 @@ export function SupplierModal({
         expectedUpdatedAtRef.current = supplier.updatedAt;
         idempotencyKeyRef.current = createIdempotencyKey();
         form.loadValues(values);
+        if (initialTab !== 'main') form.setActiveTab(initialTab);
         setErrors({});
         setUnpDuplicate(null);
         setPhase('ready');
@@ -150,7 +179,76 @@ export function SupplierModal({
     })();
 
     return () => controller.abort();
-  }, [isCreate, supplierId, onNotFound, reloadToken, setErrors, setUnpDuplicate, form.refs, form.loadValues]);
+  }, [
+    isCreate,
+    supplierId,
+    onNotFound,
+    reloadToken,
+    initialTab,
+    setErrors,
+    setUnpDuplicate,
+    form.refs,
+    form.loadValues,
+    form.setActiveTab,
+  ]);
+
+  // Контакты загружаются для сохранённого поставщика; повтор — после сохранения контакта.
+  useEffect(() => {
+    if (isCreate) {
+      setContacts([]);
+      setContactsStatus('ready');
+      return;
+    }
+
+    const controller = new AbortController();
+    setContactsStatus('loading');
+    void (async () => {
+      try {
+        const list = await fetchSupplierContacts(supplierId, controller.signal);
+        if (controller.signal.aborted) return;
+        setContacts(list.items);
+        setContactsStatus('ready');
+      } catch {
+        if (controller.signal.aborted) return;
+        setContacts([]);
+        setContactsStatus('error');
+      }
+    })();
+
+    return () => controller.abort();
+  }, [isCreate, supplierId, contactsToken]);
+
+  const reloadContacts = useCallback(() => {
+    setContactsToken((token) => token + 1);
+  }, []);
+
+  /** Контакт сохранён: список и количество обновляются, окно закрывается. */
+  const handleContactSaved = useCallback(() => {
+    setContactModal(null);
+    reloadContacts();
+  }, [reloadContacts]);
+
+  /** Ссылка на контакт с таким же телефоном: открывается его карточка. */
+  const handleOpenContactById = useCallback(
+    (contactId: string) => {
+      const found = contacts.find((item) => item.id === contactId);
+      if (!found) {
+        reloadContacts();
+        return;
+      }
+      setContactModal({ contact: found });
+    },
+    [contacts, reloadContacts],
+  );
+
+  /** Ссылка на поставщика: окно контакта закрывается, карточка переключается. */
+  const handleOpenSupplierContacts = useCallback(
+    (nextSupplierId: string) => {
+      setContactModal(null);
+      onOpenSupplierContacts(nextSupplierId);
+    },
+    [onOpenSupplierContacts],
+  );
 
   const hasChanges = useMemo(
     () => FIELD_ORDER.some((field) => form.values[field] !== originalRef.current[field]),
@@ -321,6 +419,21 @@ export function SupplierModal({
             form={form}
             disabled={submitting}
             onOpenDuplicate={handleOpenDuplicate}
+            contacts={{
+              supplierId: isCreate ? null : supplierId,
+              status: contactsStatus,
+              items: contacts,
+              onAdd: () => setContactModal({ contact: null }),
+              onOpen: (contact: SupplierContact) => setContactModal({ contact }),
+              onRetry: reloadContacts,
+            }}
+            interactions={{
+              owner: 'supplier',
+              ownerId: isCreate ? null : supplierId,
+              overdue,
+              onOverdueChange: setOverdue,
+              entry: entry ?? null,
+            }}
           />
 
           <p className="client-form__hint">* — обязательные поля</p>
@@ -402,6 +515,19 @@ export function SupplierModal({
             </button>
           </div>
         </form>
+      ) : null}
+
+      {/* Окно контакта — сосед формы: вложенные формы недопустимы. */}
+      {phase === 'ready' && !isCreate && contactModal ? (
+        <SupplierContactModal
+          key={contactModal.contact?.id ?? 'new'}
+          supplierId={supplierId ?? ''}
+          contact={contactModal.contact}
+          onOpenContact={handleOpenContactById}
+          onOpenSupplierContacts={handleOpenSupplierContacts}
+          onClose={() => setContactModal(null)}
+          onSaved={handleContactSaved}
+        />
       ) : null}
     </dialog>
   );

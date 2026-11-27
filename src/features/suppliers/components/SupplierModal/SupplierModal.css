@@ -1,12 +1,19 @@
+/* Карточка поставщика шире окна клиента: таблица контактов помещается целиком.
+   Ширина одинаковая на всех вкладках, максимум 95% экрана — из общего правила. */
+.client-modal.client-modal--supplier {
+  width: 960px;
+}
+
+
 /* Окно поставщика: предупреждение о дубле телефона (стиль «внимание», не ошибка).
    Цвета заданы локально, чтобы не менять общие токены проекта. */
 
 .supplier-warning {
-  --supplier-warning-border: #e0c07a;
-  --supplier-warning-bg: #fdf6e3;
-  --supplier-warning-text: #7a5a12;
-  --supplier-warning-accent: #b8860b;
-  --supplier-warning-close-hover: rgb(122 90 18 / 10%);
+  --supplier-warning-border: #8a7a3a;
+  --supplier-warning-bg: #2c2a1b;
+  --supplier-warning-text: #f0e2b0;
+  --supplier-warning-accent: #d9b64a;
+  --supplier-warning-close-hover: rgb(240 226 176 / 12%);
 
   display: flex;
   align-items: flex-start;
@@ -18,14 +25,6 @@
   background-color: var(--supplier-warning-bg);
   color: var(--supplier-warning-text);
   font-size: 13px;
-}
-
-[data-theme='dark'] .supplier-warning {
-  --supplier-warning-border: #8a7a3a;
-  --supplier-warning-bg: #2c2a1b;
-  --supplier-warning-text: #f0e2b0;
-  --supplier-warning-accent: #d9b64a;
-  --supplier-warning-close-hover: rgb(240 226 176 / 12%);
 }
 
 .supplier-warning__icon {

@@ -1,0 +1,196 @@
+/* Вкладка «Взаимодействия»: остальное оформление — из ClientForm.css и ClientTable.css. */
+
+.interactions {
+  display: grid;
+  gap: 14px;
+}
+
+.interactions__top {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.interactions__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.interactions__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Быстрые фильтры: выбранный выделяется цветом темы. */
+.interactions__filter {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: none;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.interactions__filter:hover {
+  color: var(--text-primary);
+}
+
+.interactions__filter--active {
+  border-color: var(--crm-tab-accent);
+  color: var(--text-primary);
+}
+
+.interactions__filter:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+.interactions__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+/* Таблица на всю ширину вкладки: горизонтальной прокрутки нет. */
+.interactions__wrap {
+  margin: 0;
+  min-height: 160px;
+  overflow-x: hidden;
+}
+
+.interactions-table {
+  width: 100%;
+  min-width: 0;
+  table-layout: fixed;
+}
+
+/* Слова не разрываются посередине: перенос только между словами. */
+.interactions-table th,
+.interactions-table td {
+  white-space: normal;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+/* Дата, тип и статус всегда в одну строку. */
+.interactions-table td:first-child,
+.interactions-table td:first-child .client-row-open,
+.interactions-table .interaction-status,
+.interactions-table .interaction-mark {
+  white-space: nowrap;
+}
+
+/* ФИО ответственного переносится только между словами. */
+.interactions-table td:last-child {
+  word-break: normal;
+  overflow-wrap: normal;
+}
+
+/*
+ * Тема: перенос между словами, а слишком длинное слово обрезается
+ * многоточием (line-clamp показывает его и для неразрывного слова).
+ */
+.interaction-title {
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+}
+
+.interactions-table__col--date {
+  width: 18%;
+}
+
+.interactions-table__col--type {
+  width: 12%;
+}
+
+.interactions-table__col--title {
+  width: 26%;
+}
+
+.interactions-table__col--contact {
+  width: 18%;
+}
+
+.interactions-table__col--status {
+  width: 14%;
+}
+
+.interactions-table__col--responsible {
+  width: 16%;
+}
+
+/* Карточка клиента: своя раскладка, таблица на всю ширину вкладки. */
+.interactions-table--client .interactions-table__col--date {
+  width: 18%;
+}
+
+.interactions-table--client .interactions-table__col--type {
+  width: 12%;
+}
+
+.interactions-table--client .interactions-table__col--title {
+  width: 34%;
+}
+
+.interactions-table--client .interactions-table__col--status {
+  width: 18%;
+}
+
+.interactions-table--client .interactions-table__col--responsible {
+  width: 18%;
+}
+
+/* Метка статуса: цвет зависит от состояния, просроченное — красное. */
+.interaction-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.interaction-status--planned {
+  border-color: var(--create-button-bg);
+  color: var(--create-button-bg);
+}
+
+.interaction-status--overdue {
+  border-color: var(--error-text);
+  color: var(--error-text);
+}
+
+.interaction-status--done {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Пометки «Перенесено» и «Изменено». */
+.interaction-mark {
+  display: block;
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.interaction-mark--moved {
+  color: var(--crm-tab-accent);
+}
+
+/* Отменённая строка приглушена, но остаётся доступной. */
+.interaction-row--muted {
+  color: var(--text-muted);
+}

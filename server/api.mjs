@@ -15,6 +15,19 @@
  *   GET   /api/suppliers/phone-check?phone=...&excludeId=...
  *   GET   /api/suppliers/{id}
  *   PATCH /api/suppliers/{id}
+ *   GET   /api/suppliers/{id}/contacts
+ *   POST  /api/suppliers/{id}/contacts
+ *   PATCH /api/supplier-contacts/{id}
+ *   GET   /api/clients/{id}/interactions?status=all|planned|overdue|done
+ *   GET   /api/suppliers/{id}/interactions?status=...
+ *   POST  /api/interactions
+ *   GET   /api/interactions/{id}
+ *   PATCH /api/interactions/{id}
+ *   POST  /api/interactions/{id}/reschedule
+ *   POST  /api/interactions/{id}/result
+ *   POST  /api/interactions/{id}/cancel
+ *   GET   /api/interactions/reminders
+ *   POST  /api/interactions/{id}/reminder
  *
  * Значения `id`, `created_at`, `updated_at` задаёт сервер; клиент их не передаёт.
  * Внутренние ошибки базы наружу не выводятся.
@@ -45,6 +58,35 @@ import {
 } from './suppliersRepository.mjs';
 import { filterSuppliers, parseSupplierQuery } from './suppliersSearch.mjs';
 import { validateSupplierPayload } from './suppliersValidation.mjs';
+import {
+  cancelInteraction,
+  completeInteraction,
+  completeWithoutPlan,
+  createPlannedInteraction,
+  dismissReminder,
+  getCurrentUserId,
+  getInteractionById,
+  listAllInteractions,
+  listDueReminders,
+  listInteractions,
+  listReschedules,
+  markReminderShown,
+  rescheduleInteraction,
+  updatePlan,
+  updateResult,
+} from './interactionsRepository.mjs';
+import {
+  validateCancelPayload,
+  validatePlanPayload,
+  validateReschedulePayload,
+  validateResultPayload,
+} from './interactionsValidation.mjs';
+import {
+  createSupplierContact,
+  listSupplierContacts,
+  updateSupplierContact,
+} from './supplierContactsRepository.mjs';
+import { validateContactPayload } from './supplierContactsValidation.mjs';
 import { validateClientPayload } from './validation.mjs';
 
 /** Ограничение размера тела запроса. */
@@ -55,6 +97,22 @@ const CLIENT_ITEM_PATTERN = /^\/api\/clients\/([^/]+)$/;
 
 /** Путь карточки поставщика: /api/suppliers/{id}. */
 const SUPPLIER_ITEM_PATTERN = /^\/api\/suppliers\/([^/]+)$/;
+
+/** Путь контактов поставщика: /api/suppliers/{id}/contacts. */
+const SUPPLIER_CONTACTS_PATTERN = /^\/api\/suppliers\/([^/]+)\/contacts$/;
+
+/** Путь карточки контакта: /api/supplier-contacts/{id}. */
+const SUPPLIER_CONTACT_ITEM_PATTERN = /^\/api\/supplier-contacts\/([^/]+)$/;
+
+/** Взаимодействия владельца: /api/clients/{id}/interactions или поставщика. */
+const CLIENT_INTERACTIONS_PATTERN = /^\/api\/clients\/([^/]+)\/interactions$/;
+const SUPPLIER_INTERACTIONS_PATTERN = /^\/api\/suppliers\/([^/]+)\/interactions$/;
+
+/** Запись взаимодействия: /api/interactions/{id}. */
+const INTERACTION_ITEM_PATTERN = /^\/api\/interactions\/([^/]+)$/;
+
+/** Действие над взаимодействием: перенос, результат, отмена, напоминание. */
+const INTERACTION_ACTION_PATTERN = /^\/api\/interactions\/([^/]+)\/(reschedule|result|cancel|reminder)$/;
 
 
 /** Ошибка с HTTP-статусом, ошибками полей и дополнительными данными ответа. */
@@ -370,9 +428,293 @@ function handleSupplierPhoneCheck(url, res) {
 }
 
 /**
- * Обрабатывает запрос к API.
- * @returns {Promise<boolean>} true, если запрос относится к API
+ * Контакт с таким телефоном занят: 409 с кодом и только теми данными, которые
+ * нужны форме (части имени контакта и/или идентификатор и наименование поставщика).
  */
+function duplicateContactPhoneError(contact) {
+  return new HttpError(409, 'Контакт с таким телефоном уже есть в списке', null, {
+    code: 'duplicate_contact_phone',
+    contact: contactNamePayload(contact),
+  });
+}
+
+function contactWorksElsewhereError(contact, supplier) {
+  return new HttpError(409, 'Контакт с таким телефоном уже работает у другого поставщика', null, {
+    code: 'contact_works_elsewhere',
+    contact: contactNamePayload(contact),
+    supplier: supplier ?? null,
+  });
+}
+
+function contactTransferRequiredError(contact, supplier, contactStatus = null) {
+  return new HttpError(409, 'Контакт числится у другого поставщика', null, {
+    code: 'contact_transfer_required',
+    contact: contactNamePayload(contact),
+    supplier: supplier ?? null,
+    contact_status: contactStatus ?? null,
+  });
+}
+
+/** Части имени контакта для сообщений формы. */
+function contactNamePayload(contact) {
+  return {
+    id: contact.id,
+    last_name: contact.last_name ?? null,
+    first_name: contact.first_name,
+    middle_name: contact.middle_name ?? null,
+  };
+}
+
+/** Список контактов поставщика вместе с их количеством для заголовка вкладки. */
+function handleListSupplierContacts(supplierId, res) {
+  if (!getSupplierById(supplierId)) {
+    throw new HttpError(404, 'Поставщик не найден');
+  }
+  sendJson(res, 200, listSupplierContacts(supplierId));
+}
+
+/** Создание контакта: дубль у своего поставщика блокирует запись, чужой переносится. */
+async function handleCreateSupplierContact(req, res, supplierId) {
+  const body = await readJsonBody(req);
+  if (!getSupplierById(supplierId)) {
+    throw new HttpError(404, 'Поставщик не найден');
+  }
+
+  const validation = validateContactPayload(body);
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+
+  const confirmTransfer = body.confirm_transfer === true || body.confirm_transfer === 'true';
+  const result = createSupplierContact(supplierId, validation.data, { confirmTransfer });
+
+  if (result.status === 'supplier_not_found') {
+    throw new HttpError(404, 'Поставщик не найден');
+  }
+  if (result.status === 'duplicate_contact_phone') {
+    throw duplicateContactPhoneError(result.contact);
+  }
+  if (result.status === 'contact_works_elsewhere') {
+    throw contactWorksElsewhereError(result.contact, result.supplier);
+  }
+  if (result.status === 'contact_transfer_required') {
+    throw contactTransferRequiredError(result.contact, result.supplier, result.contactStatus);
+  }
+
+  sendJson(res, 201, result.contact);
+}
+
+/** Обновление контакта; перенос к другому поставщику здесь не выполняется. */
+async function handleUpdateSupplierContact(req, res, contactId) {
+  const body = await readJsonBody(req);
+  const validation = validateContactPayload(body);
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+
+  const result = updateSupplierContact(contactId, validation.data);
+
+  if (result.status === 'not_found') {
+    throw new HttpError(404, 'Контакт не найден');
+  }
+  if (result.status === 'duplicate_contact_phone') {
+    throw duplicateContactPhoneError(result.contact);
+  }
+  if (result.status === 'contact_works_elsewhere') {
+    throw contactWorksElsewhereError(result.contact, result.supplier);
+  }
+  if (result.status === 'contact_transfer_required') {
+    throw contactTransferRequiredError(result.contact, result.supplier);
+  }
+
+  sendJson(res, 200, result.contact);
+}
+
+/** Владелец взаимодействия: ровно один из client_id или supplier_id. */
+function readInteractionOwner(body) {
+  const raw = (value) => (typeof value === 'string' && value.trim() !== '' ? value.trim() : null);
+  const clientId = raw(body.client_id);
+  const supplierId = raw(body.supplier_id);
+  if (Boolean(clientId) === Boolean(supplierId)) return null;
+  return { clientId, supplierId };
+}
+
+/** Владелец записи должен существовать. */
+function assertInteractionOwner(owner) {
+  if (owner.clientId && !getClientById(owner.clientId)) {
+    throw new HttpError(404, 'Клиент не найден');
+  }
+  if (owner.supplierId && !getSupplierById(owner.supplierId)) {
+    throw new HttpError(404, 'Поставщик не найден');
+  }
+}
+
+/** Ошибки полей серверной проверки. */
+function assertValidation(validation) {
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+}
+
+/** Ответ на действие над взаимодействием: одинаковые коды для всех операций. */
+function sendInteractionResult(res, result, statusCode = 200) {
+  if (result.status === 'not_found') throw new HttpError(404, 'Взаимодействие не найдено');
+  if (result.status === 'invalid_status') {
+    throw new HttpError(409, 'Действие доступно только для запланированного взаимодействия');
+  }
+  if (result.status === 'forbidden') {
+    throw new HttpError(
+      403,
+      'Изменить результат может только автор в течение 24 часов после внесения',
+    );
+  }
+  if (result.status === 'contact_required' || result.status === 'contact_not_found') {
+    throw new HttpError(422, 'Проверьте заполнение полей', {
+      supplier_contact_id: 'Выберите контактное лицо',
+    });
+  }
+  sendJson(res, statusCode, result.interaction);
+}
+
+/** Список взаимодействий клиента или поставщика вместе с числом просроченных. */
+function handleListInteractions(ownerType, ownerId, url, res) {
+  const exists = ownerType === 'client' ? getClientById(ownerId) : getSupplierById(ownerId);
+  if (!exists) {
+    throw new HttpError(404, ownerType === 'client' ? 'Клиент не найден' : 'Поставщик не найден');
+  }
+  const status = url.searchParams.get('status') ?? 'all';
+  sendJson(
+    res,
+    200,
+    listInteractions(
+      ownerType === 'client' ? { clientId: ownerId, status } : { supplierId: ownerId, status },
+    ),
+  );
+}
+
+/** Запись взаимодействия вместе с историей переносов. */
+function handleGetInteraction(id, res) {
+  const found = getInteractionById(id);
+  if (!found) throw new HttpError(404, 'Взаимодействие не найдено');
+  sendJson(res, 200, { ...found.interaction, reschedules: listReschedules(id) });
+}
+
+/** Создание: с плановым временем — план, без него — фиксация результата без плана. */
+async function handleCreateInteraction(req, res) {
+  const body = await readJsonBody(req);
+  const owner = readInteractionOwner(body);
+  if (!owner) throw new HttpError(422, 'Укажите клиента или поставщика');
+  assertInteractionOwner(owner);
+
+  const currentUserId = getCurrentUserId();
+  const plannedRaw = body.planned_at;
+  const withPlan = typeof plannedRaw === 'string' && plannedRaw.trim() !== '';
+
+  if (withPlan) {
+    const validation = validatePlanPayload(body);
+    assertValidation(validation);
+    if (!isResponsibleSelectable(validation.data.responsible_user_id)) {
+      throw new HttpError(422, 'Проверьте заполнение полей', {
+        responsible_user_id: 'Выберите ответственного',
+      });
+    }
+    sendInteractionResult(res, createPlannedInteraction(owner, validation.data, currentUserId), 201);
+    return;
+  }
+
+  const validation = validateResultPayload(body);
+  assertValidation(validation);
+  sendInteractionResult(res, completeWithoutPlan(owner, validation.data, currentUserId), 201);
+}
+
+/** Редактирование: у плана — поля плана, у выполненного — результат. */
+async function handleUpdateInteraction(req, res, id) {
+  const body = await readJsonBody(req);
+  const found = getInteractionById(id);
+  if (!found) throw new HttpError(404, 'Взаимодействие не найдено');
+  const currentUserId = getCurrentUserId();
+
+  if (found.row.status === 'planned') {
+    const validation = validatePlanPayload(body);
+    assertValidation(validation);
+    if (!isResponsibleSelectable(validation.data.responsible_user_id)) {
+      throw new HttpError(422, 'Проверьте заполнение полей', {
+        responsible_user_id: 'Выберите ответственного',
+      });
+    }
+    sendInteractionResult(res, updatePlan(id, validation.data, currentUserId));
+    return;
+  }
+
+  if (found.row.status === 'done') {
+    const validation = validateResultPayload(body);
+    assertValidation(validation);
+    sendInteractionResult(res, updateResult(id, validation.data, currentUserId));
+    return;
+  }
+
+  // Из «Отменено» назад не возвращаем: запись только для просмотра.
+  throw new HttpError(409, 'Отменённое взаимодействие нельзя изменить');
+}
+
+/** Перенос: новая дата, причина, напоминание пересчитывается от новой даты. */
+async function handleRescheduleInteraction(req, res, id) {
+  const body = await readJsonBody(req);
+  const validation = validateReschedulePayload(body);
+  assertValidation(validation);
+  sendInteractionResult(res, rescheduleInteraction(id, validation.data, getCurrentUserId()));
+}
+
+/** Внесение результата в запланированное взаимодействие. */
+async function handleInteractionResult(req, res, id) {
+  const body = await readJsonBody(req);
+  const validation = validateResultPayload(body);
+  assertValidation(validation);
+  sendInteractionResult(res, completeInteraction(id, validation.data, getCurrentUserId()));
+}
+
+/** Отмена запланированного взаимодействия. */
+async function handleCancelInteraction(req, res, id) {
+  const body = await readJsonBody(req);
+  const validation = validateCancelPayload(body);
+  assertValidation(validation);
+  sendInteractionResult(res, cancelInteraction(id, validation.data));
+}
+
+/** Общий список взаимодействий клиентов и поставщиков: фильтры, поиск, страницы. */
+function handleListAllInteractions(url, res) {
+  const params = url.searchParams;
+  sendJson(
+    res,
+    200,
+    listAllInteractions({
+      status: params.get('status') ?? 'all',
+      responsible: params.get('responsible') ?? 'all',
+      mine: params.get('mine') === 'true',
+      ownerType: params.get('ownerType') ?? 'all',
+      dateFrom: params.get('dateFrom'),
+      dateTo: params.get('dateTo'),
+      search: params.get('search') ?? '',
+      page: Number.parseInt(params.get('page') ?? '1', 10),
+      pageSize: Number.parseInt(params.get('pageSize') ?? '50', 10),
+    }),
+  );
+}
+
+/** Наступившие напоминания текущего пользователя. */
+function handleListReminders(res) {
+  const userId = getCurrentUserId();
+  sendJson(res, 200, { items: userId ? listDueReminders(userId) : [] });
+}
+
+/** Отметка о показе или закрытии напоминания. */
+async function handleInteractionReminder(req, res, id) {
+  const body = await readJsonBody(req);
+  const dismissed = body.dismissed === true || body.dismissed === 'true';
+  sendInteractionResult(res, dismissed ? dismissReminder(id) : markReminderShown(id));
+}
+
+/** Обрабатывает запрос к API. `true`, если запрос относится к API. */
 export async function handleApiRequest(req, res, url) {
   const { pathname } = url;
   if (!pathname.startsWith('/api/')) return false;
@@ -432,6 +774,26 @@ export async function handleApiRequest(req, res, url) {
       return true;
     }
 
+    // Контакты поставщика: список и создание. Шаблон со своим сегментом пути.
+    const contactsMatch = SUPPLIER_CONTACTS_PATTERN.exec(pathname);
+    if (contactsMatch) {
+      const supplierId = decodeURIComponent(contactsMatch[1]);
+      if (req.method === 'GET') {
+        handleListSupplierContacts(supplierId, res);
+        return true;
+      }
+      if (req.method === 'POST') {
+        await handleCreateSupplierContact(req, res, supplierId);
+        return true;
+      }
+    }
+
+    const contactMatch = SUPPLIER_CONTACT_ITEM_PATTERN.exec(pathname);
+    if (contactMatch && req.method === 'PATCH') {
+      await handleUpdateSupplierContact(req, res, decodeURIComponent(contactMatch[1]));
+      return true;
+    }
+
     const supplierMatch = SUPPLIER_ITEM_PATTERN.exec(pathname);
     if (supplierMatch) {
       const id = decodeURIComponent(supplierMatch[1]);
@@ -443,6 +805,69 @@ export async function handleApiRequest(req, res, url) {
         await handleUpdateSupplier(req, res, id);
         return true;
       }
+    }
+
+    // Напоминания регистрируются до шаблона /api/interactions/{id}.
+    if (pathname === '/api/interactions/reminders' && req.method === 'GET') {
+      handleListReminders(res);
+      return true;
+    }
+
+    const interactionActionMatch = INTERACTION_ACTION_PATTERN.exec(pathname);
+    if (interactionActionMatch && req.method === 'POST') {
+      const id = decodeURIComponent(interactionActionMatch[1]);
+      const action = interactionActionMatch[2];
+      if (action === 'reschedule') {
+        await handleRescheduleInteraction(req, res, id);
+        return true;
+      }
+      if (action === 'result') {
+        await handleInteractionResult(req, res, id);
+        return true;
+      }
+      if (action === 'cancel') {
+        await handleCancelInteraction(req, res, id);
+        return true;
+      }
+      if (action === 'reminder') {
+        await handleInteractionReminder(req, res, id);
+        return true;
+      }
+    }
+
+    const interactionMatch = INTERACTION_ITEM_PATTERN.exec(pathname);
+    if (interactionMatch) {
+      const id = decodeURIComponent(interactionMatch[1]);
+      if (req.method === 'GET') {
+        handleGetInteraction(id, res);
+        return true;
+      }
+      if (req.method === 'PATCH') {
+        await handleUpdateInteraction(req, res, id);
+        return true;
+      }
+    }
+
+    if (pathname === '/api/interactions' && req.method === 'GET') {
+      handleListAllInteractions(url, res);
+      return true;
+    }
+
+    if (pathname === '/api/interactions' && req.method === 'POST') {
+      await handleCreateInteraction(req, res);
+      return true;
+    }
+
+    const clientInteractionsMatch = CLIENT_INTERACTIONS_PATTERN.exec(pathname);
+    if (clientInteractionsMatch && req.method === 'GET') {
+      handleListInteractions('client', decodeURIComponent(clientInteractionsMatch[1]), url, res);
+      return true;
+    }
+
+    const supplierInteractionsMatch = SUPPLIER_INTERACTIONS_PATTERN.exec(pathname);
+    if (supplierInteractionsMatch && req.method === 'GET') {
+      handleListInteractions('supplier', decodeURIComponent(supplierInteractionsMatch[1]), url, res);
+      return true;
     }
 
     throw new HttpError(404, 'Метод API не найден');

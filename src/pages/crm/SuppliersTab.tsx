@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { Toast } from '../../components/Toast/Toast';
 import { useDebouncedValue } from '../../features/clients/hooks/useDebouncedValue';
@@ -6,7 +7,8 @@ import { SupplierModal } from '../../features/suppliers/components/SupplierModal
 import { SupplierTable } from '../../features/suppliers/components/SupplierTable/SupplierTable';
 import { SupplierToolbar } from '../../features/suppliers/components/SupplierToolbar/SupplierToolbar';
 import { useSuppliers } from '../../features/suppliers/hooks/useSuppliers';
-import type { DuplicatePhoneWarning, Supplier } from '../../features/suppliers/types';
+import type { DuplicatePhoneWarning, Supplier, SupplierTab } from '../../features/suppliers/types';
+import type { InteractionEntry, InteractionModalMode } from '../../features/interactions/types';
 
 /** Задержка поиска по мере ввода. */
 const SEARCH_DELAY_MS = 300;
@@ -29,6 +31,22 @@ export function SuppliersTab() {
   const [createOpen, setCreateOpen] = useState(false);
   /** Идентификатор поставщика, карточка которого открыта; null — окно закрыто. */
   const [editingId, setEditingId] = useState<string | null>(null);
+  /** Вкладка, которая открывается в карточке: переход по ссылке открывает контакты. */
+  const [openTab, setOpenTab] = useState<SupplierTab>('main');
+  /** Переход из напоминания: карточка владельца и запись взаимодействия. */
+  const [searchParams] = useSearchParams();
+  const entryOwnerId = searchParams.get('open');
+  const entryInteractionId = searchParams.get('interaction');
+  const entryMode = searchParams.get('mode');
+  const entry = useMemo<InteractionEntry | null>(() => {
+    if (!entryOwnerId || !entryInteractionId) return null;
+    const mode: InteractionModalMode =
+      entryMode === 'plan' || entryMode === 'reschedule' || entryMode === 'result'
+        ? entryMode
+        : 'view';
+    return { interactionId: entryInteractionId, mode };
+  }, [entryInteractionId, entryMode, entryOwnerId]);
+  const handledEntryRef = useRef<string | null>(null);
   const [toast, setToast] = useState<ToastState | null>(null);
   const [toastVersion, setToastVersion] = useState(0);
   /** Предупреждение о дубле телефона: показывается в окне поставщика. */
@@ -86,6 +104,7 @@ export function SuppliersTab() {
   const handleOpenSupplier = useCallback((supplier: Supplier, trigger: HTMLButtonElement) => {
     rowTriggerRef.current = trigger;
     setCreateOpen(false);
+    setOpenTab('main');
     setEditingId(supplier.id);
   }, []);
 
@@ -132,8 +151,32 @@ export function SuppliersTab() {
   const handleOpenDuplicate = useCallback((supplierId: string) => {
     setCreateOpen(false);
     setWarning(null);
+    setOpenTab('main');
     setEditingId(supplierId);
   }, []);
+
+  /**
+   * Переход в карточку другого поставщика со вкладки «Контактные лица»:
+   * окно контакта закрывается, открывается карточка на этой же вкладке.
+   */
+  const handleOpenSupplierContacts = useCallback((supplierId: string) => {
+    setCreateOpen(false);
+    setWarning(null);
+    setOpenTab('contacts');
+    setEditingId(supplierId);
+  }, []);
+
+  /** Переход из напоминания: карточка открывается на вкладке «Взаимодействия». */
+  useEffect(() => {
+    if (!entry || !entryOwnerId) return;
+    if (handledEntryRef.current === entry.interactionId) return;
+    handledEntryRef.current = entry.interactionId;
+    rowTriggerRef.current = null;
+    setCreateOpen(false);
+    setWarning(null);
+    setOpenTab('interactions');
+    setEditingId(entryOwnerId);
+  }, [entry, entryOwnerId]);
 
   return (
     <div className="crm-view">
@@ -142,6 +185,7 @@ export function SuppliersTab() {
         onSearchChange={setSearch}
         onCreateClick={() => {
           setEditingId(null);
+          setOpenTab('main');
           setCreateOpen(true);
         }}
         createButtonRef={createButtonRef}
@@ -170,6 +214,9 @@ export function SuppliersTab() {
           onSavedWithWarning={handleSavedWithWarning}
           onNotFound={handleNotFound}
           onOpenDuplicate={handleOpenDuplicate}
+          initialTab={openTab}
+          onOpenSupplierContacts={handleOpenSupplierContacts}
+          entry={entry}
         />
       ) : null}
 

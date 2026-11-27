@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 
 import { Toast } from '../../components/Toast/Toast';
 import { ClientTable } from '../../features/clients/components/ClientTable/ClientTable';
@@ -7,7 +8,8 @@ import { CreateClientModal } from '../../features/clients/components/CreateClien
 import { EditClientModal } from '../../features/clients/components/EditClientModal/EditClientModal';
 import { useClients } from '../../features/clients/hooks/useClients';
 import { useDebouncedValue } from '../../features/clients/hooks/useDebouncedValue';
-import type { Client } from '../../features/clients/types';
+import type { Client, ClientTab } from '../../features/clients/types';
+import type { InteractionEntry, InteractionModalMode } from '../../features/interactions/types';
 
 /** Задержка поиска по мере ввода (раздел 5 ТЗ). */
 const SEARCH_DELAY_MS = 300;
@@ -36,6 +38,22 @@ export function ClientsTab() {
   const rowTriggerRef = useRef<HTMLButtonElement | null>(null);
   const wasModalOpen = useRef(false);
   const wasEditing = useRef(false);
+  /** Вкладка, которая открывается в карточке. */
+  const [openTab, setOpenTab] = useState<ClientTab>('main');
+  /** Переход из напоминания: карточка владельца и запись взаимодействия. */
+  const [searchParams] = useSearchParams();
+  const entryOwnerId = searchParams.get('open');
+  const entryInteractionId = searchParams.get('interaction');
+  const entryMode = searchParams.get('mode');
+  const entry = useMemo<InteractionEntry | null>(() => {
+    if (!entryOwnerId || !entryInteractionId) return null;
+    const mode: InteractionModalMode =
+      entryMode === 'plan' || entryMode === 'reschedule' || entryMode === 'result'
+        ? entryMode
+        : 'view';
+    return { interactionId: entryInteractionId, mode };
+  }, [entryInteractionId, entryMode, entryOwnerId]);
+  const handledEntryRef = useRef<string | null>(null);
 
   // Фокус возвращается на кнопку открытия после закрытия окна создания.
   useEffect(() => {
@@ -81,6 +99,7 @@ export function ClientsTab() {
   /** Клик по строке: открывает карточку и запоминает кнопку для возврата фокуса. */
   const handleOpenClient = useCallback((client: Client, trigger: HTMLButtonElement) => {
     rowTriggerRef.current = trigger;
+    setOpenTab('main');
     setEditingId(client.id);
   }, []);
 
@@ -101,6 +120,17 @@ export function ClientsTab() {
   const handleSwitchClient = useCallback((clientId: string) => {
     setEditingId(clientId);
   }, []);
+
+  /** Переход из напоминания: карточка владельца открывается на вкладке «Взаимодействия». */
+  useEffect(() => {
+    if (!entry || !entryOwnerId) return;
+    if (handledEntryRef.current === entry.interactionId) return;
+    handledEntryRef.current = entry.interactionId;
+    rowTriggerRef.current = null;
+    setModalOpen(false);
+    setOpenTab('interactions');
+    setEditingId(entryOwnerId);
+  }, [entry, entryOwnerId]);
 
   /**
    * Сохранение карточки: поиск не сбрасывается, строка остаётся на своём месте.
@@ -124,7 +154,10 @@ export function ClientsTab() {
       <ClientToolbar
         search={search}
         onSearchChange={setSearch}
-        onCreateClick={() => setModalOpen(true)}
+        onCreateClick={() => {
+          setOpenTab('main');
+          setModalOpen(true);
+        }}
         createButtonRef={createButtonRef}
       />
 
@@ -148,11 +181,14 @@ export function ClientsTab() {
 
       {editingId !== null ? (
         <EditClientModal
+          key={editingId}
           clientId={editingId}
           onClose={handleCloseClient}
           onSaved={handleClientSaved}
           onNotFound={handleClientNotFound}
           onOpenDuplicate={handleSwitchClient}
+          initialTab={openTab}
+          entry={entry}
         />
       ) : null}
 

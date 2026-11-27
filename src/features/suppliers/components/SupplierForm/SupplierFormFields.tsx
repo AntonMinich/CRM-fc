@@ -10,7 +10,12 @@ import type { KeyboardEvent } from 'react';
 
 import { DETAIL_BLOCKS, DETAIL_LIMITS } from '../../config/supplierFields';
 import { SUPPLIER_LIMITS } from '../../utils/validateSupplierForm';
-import type { SupplierFormValues, SupplierTab } from '../../types';
+import type { LoadStatus, SupplierContact, SupplierFormValues, SupplierTab } from '../../types';
+import { SupplierContactsPanel } from '../SupplierContacts/SupplierContactsPanel';
+import {
+  InteractionsPanel,
+  type InteractionsTabProps,
+} from '../../../interactions/components/InteractionsPanel/InteractionsPanel';
 import {
   PHONE_PLACEHOLDER,
   formatPhoneFieldValue,
@@ -51,7 +56,19 @@ const FIELD_SLUGS: Record<keyof SupplierFormValues, string> = {
 const TABS: readonly { id: SupplierTab; label: string }[] = [
   { id: 'main', label: 'Установочные данные' },
   { id: 'details', label: 'Реквизиты' },
+  { id: 'contacts', label: 'Контактные лица' },
+  { id: 'interactions', label: 'Взаимодействия' },
 ];
+
+/** Данные вкладки «Контактные лица»: у несохранённого поставщика их нет. */
+export interface SupplierContactsTabProps {
+  supplierId: string | null;
+  status: LoadStatus;
+  items: SupplierContact[];
+  onAdd: () => void;
+  onOpen: (contact: SupplierContact) => void;
+  onRetry: () => void;
+}
 
 interface SupplierFormFieldsProps {
   /** Префикс идентификаторов: `create-supplier` или `edit-supplier`. */
@@ -61,6 +78,10 @@ interface SupplierFormFieldsProps {
   disabled?: boolean;
   /** Переход в карточку поставщика с таким же телефоном (дубль номера). */
   onOpenDuplicate?: (supplierId: string) => void;
+  /** Вкладка «Контактные лица»: таблица, кнопка добавления и состояния загрузки. */
+  contacts: SupplierContactsTabProps;
+  /** Вкладка «Взаимодействия»: список, счётчик просроченных и окна. */
+  interactions: InteractionsTabProps;
 }
 
 export function SupplierFormFields({
@@ -68,6 +89,8 @@ export function SupplierFormFields({
   form,
   disabled = false,
   onOpenDuplicate,
+  contacts,
+  interactions,
 }: SupplierFormFieldsProps) {
   const fieldId = (field: keyof SupplierFormValues) => `${idPrefix}-${FIELD_SLUGS[field]}`;
   const errorId = (field: keyof SupplierFormValues) => `${idPrefix}-${field}-error`;
@@ -115,7 +138,16 @@ export function SupplierFormFields({
             onClick={() => form.setActiveTab(tab.id)}
             onKeyDown={handleTabKeyDown}
           >
-            {tab.label}
+            {tab.id === 'contacts' ? `Контактные лица (${contacts.items.length})` : null}
+            {tab.id === 'interactions' ? (
+              <>
+                Взаимодействия
+                {interactions.overdue > 0 ? (
+                  <span className="client-tab__count"> ({interactions.overdue})</span>
+                ) : null}
+              </>
+            ) : null}
+            {tab.id === 'main' || tab.id === 'details' ? tab.label : null}
           </button>
         ))}
       </div>
@@ -350,6 +382,41 @@ export function SupplierFormFields({
           </Fragment>
         ))}
       </div>
+
+      <div
+        className="client-form__fields client-form__fields--contacts"
+        role="tabpanel"
+        id={panelId('contacts')}
+        aria-labelledby={tabId('contacts')}
+        hidden={form.activeTab !== 'contacts'}
+      >
+        <SupplierContactsPanel
+          supplierId={contacts.supplierId}
+          status={contacts.status}
+          items={contacts.items}
+          onAdd={contacts.onAdd}
+          onOpen={contacts.onOpen}
+          onRetry={contacts.onRetry}
+        />
+      </div>
+      <div
+        className="client-form__fields client-form__fields--interactions"
+        role="tabpanel"
+        id={panelId('interactions')}
+        aria-labelledby={tabId('interactions')}
+        hidden={form.activeTab !== 'interactions'}
+      >
+        <InteractionsPanel
+          owner={interactions.owner}
+          ownerId={interactions.ownerId}
+          overdue={interactions.overdue}
+          onOverdueChange={interactions.onOverdueChange}
+          entry={interactions.entry ?? null}
+        />
+      </div>
+
+
+
     </div>
   );
 }

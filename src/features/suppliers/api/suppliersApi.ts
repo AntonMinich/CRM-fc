@@ -5,9 +5,15 @@
  */
 
 import type {
+  ContactName,
   DuplicatePhoneWarning,
   DuplicateSupplier,
   Supplier,
+  SupplierContact,
+  SupplierContactDto,
+  SupplierContactStatus,
+  SupplierContacts,
+  SupplierContactsDto,
   SupplierDto,
   SuppliersPage,
   SuppliersPageDto,
@@ -28,6 +34,14 @@ interface DuplicatePhoneWarningDto {
   total: number;
 }
 
+/** Ответ сервера с частями имени найденного контакта (snake_case). */
+interface ContactNameDto {
+  id: string;
+  last_name?: string | null;
+  first_name?: string;
+  middle_name?: string | null;
+}
+
 /** Ошибка запроса: статус, код сервера, ошибки полей и данные дубля телефона. */
 export class SupplierApiError extends Error {
   readonly status: number;
@@ -36,6 +50,10 @@ export class SupplierApiError extends Error {
   readonly code: string | null;
   /** Поставщик с таким же телефоном, если сервер вернул `duplicate_phone`. */
   readonly duplicateSupplier: DuplicateSupplier | null;
+  /** Найденный контакт с таким же телефоном (`duplicate_contact_phone` и др.). */
+  readonly duplicateContact: ContactName | null;
+  /** Статус найденного контакта: приходит вместе с `contact_transfer_required`. */
+  readonly duplicateContactStatus: SupplierContactStatus | null;
 
   constructor(
     status: number,
@@ -43,6 +61,8 @@ export class SupplierApiError extends Error {
     fieldErrors: Record<string, string> | null = null,
     code: string | null = null,
     duplicateSupplier: DuplicateSupplier | null = null,
+    duplicateContact: ContactName | null = null,
+    duplicateContactStatus: SupplierContactStatus | null = null,
   ) {
     super(message);
     this.name = 'SupplierApiError';
@@ -50,6 +70,8 @@ export class SupplierApiError extends Error {
     this.fieldErrors = fieldErrors;
     this.code = code;
     this.duplicateSupplier = duplicateSupplier;
+    this.duplicateContact = duplicateContact;
+    this.duplicateContactStatus = duplicateContactStatus;
   }
 }
 
@@ -59,6 +81,9 @@ interface ApiErrorBody {
     code?: string;
     fieldErrors?: Record<string, string>;
     supplier?: DuplicateSupplierDto;
+    contact?: ContactNameDto;
+    /** Статус найденного контакта: нужен сообщению о переносе. */
+    contact_status?: string | null;
   };
 }
 
@@ -66,6 +91,24 @@ interface ApiErrorBody {
 function toDuplicateSupplier(dto: DuplicateSupplierDto | undefined): DuplicateSupplier | null {
   if (!dto || typeof dto.id !== 'string') return null;
   return { id: dto.id, name: dto.name };
+}
+
+/** Части имени найденного контакта из ответа сервера. */
+function toContactName(dto: ContactNameDto | undefined): ContactName | null {
+  if (!dto || typeof dto.id !== 'string') return null;
+  return {
+    id: dto.id,
+    lastName: dto.last_name ?? null,
+    firstName: dto.first_name ?? '',
+    middleName: dto.middle_name ?? null,
+  };
+}
+
+/** Статус найденного контакта из ответа сервера. */
+function toContactStatus(value: string | null | undefined): SupplierContactStatus | null {
+  if (value === 'active') return 'active';
+  if (value === 'inactive') return 'inactive';
+  return null;
 }
 
 /** Предупреждение о дубле телефона в модель интерфейса. */
@@ -110,6 +153,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
       body.error?.fieldErrors ?? null,
       body.error?.code ?? null,
       toDuplicateSupplier(body.error?.supplier),
+      toContactName(body.error?.contact),
+      toContactStatus(body.error?.contact_status),
     );
   }
 
@@ -280,4 +325,90 @@ export async function fetchPhoneDuplicates(
     { signal },
   );
   return toDuplicatePhoneWarning(dto.duplicates);
+}
+
+/** Ответ сервера -> модель контактного лица. */
+function toSupplierContact(dto: SupplierContactDto): SupplierContact {
+  const status: SupplierContactStatus = dto.status === 'inactive' ? 'inactive' : 'active';
+  return {
+    id: dto.id,
+    supplierId: dto.supplier_id,
+    lastName: dto.last_name ?? null,
+    firstName: dto.first_name,
+    middleName: dto.middle_name ?? null,
+    position: dto.position,
+    phone: dto.phone,
+    email: dto.email ?? null,
+    status,
+    isPrimary: dto.is_primary === true,
+    comment: dto.comment ?? null,
+    createdAt: dto.created_at,
+    updatedAt: dto.updated_at,
+  };
+}
+
+/** Контакты поставщика: количество для заголовка вкладки приходит со списком. */
+export async function fetchSupplierContacts(
+  supplierId: string,
+  signal?: AbortSignal,
+): Promise<SupplierContacts> {
+  const dto = await request<SupplierContactsDto>(
+    `/suppliers/${encodeURIComponent(supplierId)}/contacts`,
+    { signal },
+  );
+  return {
+    items: (dto.items ?? []).map(toSupplierContact),
+    total: typeof dto.total === 'number' ? dto.total : (dto.items ?? []).length,
+  };
+}
+
+/** Тело запроса создания и обновления контакта. Значения уже нормализованы. */
+export interface SupplierContactInput {
+  last_name: string | null;
+  first_name: string;
+  middle_name: string | null;
+  position: string;
+  phone: string;
+  email: string | null;
+  status: SupplierContactStatus;
+  is_primary: boolean;
+  comment: string | null;
+  /** Подтверждение переноса неработающего контакта от другого поставщика. */
+  confirm_transfer?: boolean;
+}
+
+/** Создаёт контакт поставщика. Дубль телефона возвращает 409 с кодом. */
+export async function createSupplierContact(
+  supplierId: string,
+  input: SupplierContactInput,
+  signal?: AbortSignal,
+): Promise<SupplierContact> {
+  const dto = await request<SupplierContactDto>(
+    `/suppliers/${encodeURIComponent(supplierId)}/contacts`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal,
+    },
+  );
+  return toSupplierContact(dto);
+}
+
+/** Сохраняет изменения контакта. Перенос к другому поставщику здесь не выполняется. */
+export async function updateSupplierContact(
+  contactId: string,
+  input: SupplierContactInput,
+  signal?: AbortSignal,
+): Promise<SupplierContact> {
+  const dto = await request<SupplierContactDto>(
+    `/supplier-contacts/${encodeURIComponent(contactId)}`,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(input),
+      signal,
+    },
+  );
+  return toSupplierContact(dto);
 }

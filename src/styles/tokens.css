@@ -1,9 +1,9 @@
 /* Токены оболочки Fincode.
-   Палитра из раздела 8.2 ТЗ; производные оттенки (наведение, дорожка
-   переключателя, фокус) добавлены для состояний и читаемости. */
+   Палитра из раздела 8.2 ТЗ; производные оттенки (наведение, фокус) добавлены
+   для состояний и читаемости. Интерфейс оформлен в единственной тёмной теме. */
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
 
   /* Цвета брендбука — справочно, в интерфейсе используются через токены ниже. */
   --brand-blue: #101954;
@@ -36,17 +36,11 @@
   --header-subtitle-size: 12px;
   --avatar-size: 34px;
 
-  /* Переключатель темы */
-  --switch-width: 42px;
-  --switch-height: 24px;
-  --switch-thumb: 18px;
-  --switch-font-size: 13px;
-
   /* Декор рабочей области */
   --decor-width: min(52vw, 610px);
-  --decor-opacity: 0.3;
-  --decor-right: -85px;
-  --decor-bottom: -125px;
+  --decor-opacity: 0.55;
+  --decor-right: 0;
+  --decor-bottom: 0;
 
   /* Страница CRM: панель действий */
   --crm-toolbar-padding-x: 32px;
@@ -55,9 +49,9 @@
   --create-button-height: 44px;
   --create-button-radius: 10px;
   --create-button-font-size: 14px;
-  --create-button-bg: #101954;
-  --create-button-bg-hover: #1b2a63;
-  --create-button-bg-active: #0b1240;
+  --create-button-bg: #355ac7;
+  --create-button-bg-hover: #4066d4;
+  --create-button-bg-active: #2a49a8;
   --create-button-text: #ffffff;
 
   /* Страница CRM: канбан */
@@ -77,7 +71,7 @@
   --column-header-text: #ffffff;
   --column-title-size: 13.5px;
   --column-total-size: 20px;
-  --kanban-body-bg: rgb(236 240 247 / 94%);
+  --kanban-body-bg: rgb(18 30 57 / 94%);
 
   /* Верхнее меню CRM */
   --crm-tabs-gap: 32px;
@@ -90,7 +84,7 @@
   --crm-tab-accent: #25ada2;
 
   /* Клиенты: панель действий, таблица, модальное окно */
-  --surface: #ffffff;
+  --surface: #0d1633;
   --search-width: 420px;
   --field-height: 44px;
   --field-radius: 8px;
@@ -105,55 +99,37 @@
   --modal-max-height: 94dvh;
   --modal-radius: 16px;
   --modal-padding: 28px;
-  --modal-backdrop: rgb(4 11 28 / 53%);
+  --modal-backdrop: rgb(2 6 16 / 66%);
   --toast-offset: 26px;
-  --error-text: #b04040;
+  --error-text: #f2a0a0;
 
   /* Клиенты: мягкое оформление таблицы (раздел 5 ТЗ на обновление оформления) */
-  --clients-surface: rgb(255 255 255 / 72%);
-  --clients-head-surface: rgb(232 238 248 / 80%);
-  --clients-surface-border: rgb(80 102 144 / 18%);
-  --clients-row-line: rgb(80 102 144 / 8%);
-  --clients-row-hover: rgb(52 89 189 / 5.5%);
-  --clients-text-secondary: #65718b;
+  --clients-surface: rgb(15 25 48 / 76%);
+  --clients-head-surface: rgb(26 40 71 / 84%);
+  --clients-surface-border: rgb(155 181 224 / 17%);
+  --clients-row-line: rgb(155 181 224 / 8%);
+  --clients-row-hover: rgb(105 148 231 / 8.5%);
+  --clients-text-secondary: #a5b2cc;
   --table-head-padding-y: 20px;
   --table-line-inset: 24px;
   --table-row-radius: 10px;
 
   /* Уведомление об успешном создании клиента (раздел 6 ТЗ) */
   --toast-width: 360px;
-  --toast-bg: #ffffff;
-  --toast-border: #8cc9b8;
-  --toast-accent: #087f65;
-  --toast-icon-bg: #dff5ec;
-  --toast-text: #101954;
-  --toast-shadow: 0 12px 32px rgb(4 11 28 / 22%);
-  --toast-close-hover: rgb(16 25 84 / 8%);
+  --toast-bg: #1b3040;
+  --toast-border: #47b99a;
+  --toast-accent: #71e6bd;
+  --toast-icon-bg: #234c48;
+  --toast-text: #f2f4ff;
+  --toast-shadow: 0 14px 40px rgb(0 0 0 / 45%);
+  --toast-close-hover: rgb(242 244 255 / 12%);
 
   /* Тот же рисунок уведомления для сообщений об ошибке. */
-  --toast-error-border: #e0a8a2;
-  --toast-error-accent: #b04040;
-  --toast-error-icon-bg: #fbe9e6;
+  --toast-error-border: #a4635e;
+  --toast-error-accent: #f2a0a0;
+  --toast-error-icon-bg: #43262a;
 
-  /* Палитра — светлая тема */
-  --bg-workspace: #f5f6fa;
-  --bg-sidebar: #ffffff;
-  --text-primary: #101954;
-  --text-muted: #667085;
-  --border: #e6e9f1;
-  --nav-active-bg: #101954;
-  --nav-active-text: #ffffff;
-  --nav-hover-bg: #f1f3f9;
-  --switch-on: #19ad9b;
-  --switch-off: #d9dee9;
-  --switch-knob: #ffffff;
-  --focus-ring: #19ad9b;
-}
-
-[data-theme='dark'] {
-  color-scheme: dark;
-
-  /* Палитра — тёмная тема */
+  /* Палитра — единственная тема, тёмная */
   --bg-workspace: #080f24;
   --bg-sidebar: #0d1633;
   --text-primary: #f2f4ff;
@@ -162,43 +138,7 @@
   --nav-active-bg: #1b2c59;
   --nav-active-text: #ffffff;
   --nav-hover-bg: #17224a;
-  --switch-off: #2a3555;
-  --switch-knob: #ffffff;
+  --accent: #19ad9b;
   --focus-ring: #19ad9b;
-
-  /* Тот же отпечаток, но плотнее и прижат к правому нижнему углу. */
-  --decor-opacity: 0.55;
-  --decor-right: 0;
-  --decor-bottom: 0;
-
-  /* Кнопка «Создать» и тело столбцов в тёмной теме. */
-  --create-button-bg: #355ac7;
-  --create-button-bg-hover: #4066d4;
-  --create-button-bg-active: #2a49a8;
-  --kanban-body-bg: rgb(18 30 57 / 94%);
-
-  /* Поверхности таблицы, полей и модального окна в тёмной теме. */
-  --surface: #0d1633;
-  --modal-backdrop: rgb(2 6 16 / 66%);
-  --error-text: #f2a0a0;
-
-  /* Клиенты: мягкое оформление таблицы в тёмной теме. */
-  --clients-surface: rgb(15 25 48 / 76%);
-  --clients-head-surface: rgb(26 40 71 / 84%);
-  --clients-surface-border: rgb(155 181 224 / 17%);
-  --clients-row-line: rgb(155 181 224 / 8%);
-  --clients-row-hover: rgb(105 148 231 / 8.5%);
-  --clients-text-secondary: #a5b2cc;
-
-  /* Уведомление об успешном создании клиента в тёмной теме. */
-  --toast-bg: #1b3040;
-  --toast-border: #47b99a;
-  --toast-accent: #71e6bd;
-  --toast-icon-bg: #234c48;
-  --toast-text: #f2f4ff;
-  --toast-shadow: 0 14px 40px rgb(0 0 0 / 45%);
-  --toast-close-hover: rgb(242 244 255 / 12%);
-  --toast-error-border: #a4635e;
-  --toast-error-accent: #f2a0a0;
-  --toast-error-icon-bg: #43262a;
 }
+

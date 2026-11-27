@@ -20,6 +20,10 @@ import {
   movePhoneCaretAfterPrefix,
 } from '../../utils/phone';
 import type { ClientFormApi } from './useClientForm';
+import {
+  InteractionsPanel,
+  type InteractionsTabProps,
+} from '../../../interactions/components/InteractionsPanel/InteractionsPanel';
 import './ClientForm.css';
 
 /** Часть идентификатора поля (kebab-case, как в макете). */
@@ -51,6 +55,7 @@ const FIELD_SLUGS: Record<keyof ClientFormValues, string> = {
 const TABS: readonly { id: ClientTab; label: string }[] = [
   { id: 'main', label: 'Установочные данные' },
   { id: 'addresses', label: 'Реквизиты' },
+  { id: 'interactions', label: 'Взаимодействия' },
 ];
 
 interface ClientFormFieldsProps {
@@ -64,6 +69,8 @@ interface ClientFormFieldsProps {
   onRetryUsers: () => void;
   /** Переход в карточку клиента с таким же телефоном (дубль номера). */
   onOpenDuplicate?: (clientId: string) => void;
+  /** Вкладка «Взаимодействия»: список, счётчик просроченных и окна. */
+  interactions: InteractionsTabProps;
 }
 
 export function ClientFormFields({
@@ -74,6 +81,7 @@ export function ClientFormFields({
   disabled = false,
   onRetryUsers,
   onOpenDuplicate,
+  interactions,
 }: ClientFormFieldsProps) {
   const fieldId = (field: keyof ClientFormValues) => `${idPrefix}-${FIELD_SLUGS[field]}`;
   const errorId = (field: keyof ClientFormValues) => `${idPrefix}-${field}-error`;
@@ -121,7 +129,16 @@ export function ClientFormFields({
             onClick={() => form.setActiveTab(tab.id)}
             onKeyDown={handleTabKeyDown}
           >
-            {tab.label}
+            {tab.id === 'interactions' ? (
+              <>
+                Взаимодействия
+                {interactions.overdue > 0 ? (
+                  <span className="client-tab__count"> ({interactions.overdue})</span>
+                ) : null}
+              </>
+            ) : (
+              tab.label
+            )}
           </button>
         ))}
       </div>
@@ -389,6 +406,23 @@ export function ClientFormFields({
           </Fragment>
         ))}
       </div>
+      <div
+        className="client-form__fields client-form__fields--interactions"
+        role="tabpanel"
+        id={panelId('interactions')}
+        aria-labelledby={tabId('interactions')}
+        hidden={form.activeTab !== 'interactions'}
+      >
+        <InteractionsPanel
+          owner={interactions.owner}
+          ownerId={interactions.ownerId}
+          overdue={interactions.overdue}
+          onOverdueChange={interactions.onOverdueChange}
+          entry={interactions.entry ?? null}
+        />
+      </div>
+
+
 
     </div>
   );

@@ -119,7 +119,7 @@ export interface ClientFormValues {
 }
 
 /** Вкладка окна клиента. */
-export type ClientTab = 'main' | 'addresses';
+export type ClientTab = 'main' | 'addresses' | 'interactions';
 
 /** Ошибки полей формы. */
 export type ClientFormErrors = Partial<Record<keyof ClientFormValues, string>>;

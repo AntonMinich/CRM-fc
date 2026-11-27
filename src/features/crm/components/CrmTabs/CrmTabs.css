@@ -33,6 +33,11 @@
   outline-offset: 2px;
 }
 
+/* Число просроченных взаимодействий в заголовке вкладки. */
+.crm-tab__count {
+  color: var(--error-text);
+}
+
 @media (max-width: 650px) {
   .crm-tabs {
     gap: 20px;

@@ -21,7 +21,6 @@ for (const path of ['/crm/deals', '/crm/clients', '/crm/suppliers', '/service-de
   await page.waitForLoadState('networkidle');
   const data = await page.evaluate(() => ({
     title: document.querySelector('h1')?.textContent,
-    theme: document.documentElement.getAttribute('data-theme'),
     active: document.querySelector('.sidebar__nav [aria-current="page"]')?.textContent?.trim(),
     nav: Array.from(document.querySelectorAll('.sidebar__nav a')).map((a) =>
       a.textContent.trim(),
@@ -42,7 +41,7 @@ for (const path of ['/crm/deals', '/crm/clients', '/crm/suppliers', '/service-de
     scroll: document.documentElement.scrollWidth <= document.documentElement.clientWidth,
   }));
   console.log(
-    `${path}: заголовок=${data.title}, тема=${data.theme}, меню=[${data.nav.join(', ')}], ` +
+    `${path}: заголовок=${data.title}, меню=[${data.nav.join(', ')}], ` +
       `пункт=${data.active}, вкладки=[${data.tabs.join(', ')}], активная=${data.activeTab}, ` +
       `столбцов=${data.columns}, суммы=[${data.totals.join(', ')}], кнопка=${data.createButton}, ` +
       `строк клиентов=${data.clientRows}, состояние=${data.clientState}, ` +
@@ -51,8 +50,7 @@ for (const path of ['/crm/deals', '/crm/clients', '/crm/suppliers', '/service-de
 }
 
 await page.goto(`${BASE}/crm/clients`, { waitUntil: 'load' });
-await page.click('[role="switch"]');
-await page.waitForTimeout(200);
+await page.waitForLoadState('networkidle');
 await page.screenshot({ path: 'docs/screenshots/live-dev-dark-1440x900.png' });
 console.log('скриншот: docs/screenshots/live-dev-dark-1440x900.png');
 

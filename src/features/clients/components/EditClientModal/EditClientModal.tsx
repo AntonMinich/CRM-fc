@@ -20,6 +20,8 @@ import {
   validateClientForm,
 } from '../../utils/validateClientForm';
 import { ClientFormFields } from '../ClientForm/ClientFormFields';
+import type { InteractionEntry } from '../../../interactions/types';
+import type { ClientTab } from '../../types';
 import { DUPLICATE_PHONE_MESSAGE, useClientForm } from '../ClientForm/useClientForm';
 
 /** Сообщение о конфликте одновременного редактирования. */
@@ -49,6 +51,10 @@ interface EditClientModalProps {
   onNotFound: () => void;
   /** Переход в карточку клиента, у которого уже есть такой телефон. */
   onOpenDuplicate: (clientId: string) => void;
+  /** Переход из напоминания: открыть взаимодействие в нужном режиме. */
+  entry?: InteractionEntry | null;
+  /** Вкладка, которая открывается после загрузки карточки. */
+  initialTab?: ClientTab;
 }
 
 export function EditClientModal({
@@ -57,6 +63,8 @@ export function EditClientModal({
   onSaved,
   onNotFound,
   onOpenDuplicate,
+  entry = null,
+  initialTab = 'main',
 }: EditClientModalProps) {
   const dialogRef = useRef<HTMLDialogElement | null>(null);
   const idempotencyKeyRef = useRef<string>(createIdempotencyKey());
@@ -74,6 +82,8 @@ export function EditClientModal({
   const [submitting, setSubmitting] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
   const [conflict, setConflict] = useState(false);
+  /** Число просроченных взаимодействий: показывается в заголовке вкладки. */
+  const [overdue, setOverdue] = useState(0);
 
   // Карточка открыта сразу при монтировании окна.
   useEffect(() => {
@@ -111,6 +121,7 @@ export function EditClientModal({
         expectedUpdatedAtRef.current = client.updatedAt;
         idempotencyKeyRef.current = createIdempotencyKey();
         form.loadValues(values);
+        if (initialTab !== 'main') form.setActiveTab(initialTab);
         setErrors({});
         setPhoneDuplicate(null);
         setPhase('ready');
@@ -126,7 +137,18 @@ export function EditClientModal({
     })();
 
     return () => controller.abort();
-  }, [clientId, loadUsers, onNotFound, refs, reloadToken, setErrors, setPhoneDuplicate, form.loadValues]);
+  }, [
+    clientId,
+    loadUsers,
+    onNotFound,
+    refs,
+    reloadToken,
+    initialTab,
+    setErrors,
+    setPhoneDuplicate,
+    form.loadValues,
+    form.setActiveTab,
+  ]);
 
   const hasChanges = useMemo(
     () => FIELD_ORDER.some((field) => form.values[field] !== originalRef.current[field]),
@@ -278,6 +300,13 @@ export function EditClientModal({
             disabled={submitting}
             onRetryUsers={() => void loadUsers()}
             onOpenDuplicate={handleOpenDuplicate}
+            interactions={{
+              owner: 'client',
+              ownerId: clientId,
+              overdue,
+              onOverdueChange: setOverdue,
+              entry: entry ?? null,
+            }}
           />
 
           <p className="client-form__hint">* — обязательные поля</p>

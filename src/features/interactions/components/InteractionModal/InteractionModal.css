@@ -1,0 +1,93 @@
+/* Окно взаимодействия: ширина как у остальных окон, просмотр и история. */
+
+.client-modal.client-modal--interaction {
+  width: 640px;
+}
+
+/* Просмотр: пары «поле — значение». */
+.interaction-view {
+  display: grid;
+  gap: 18px;
+}
+
+.interaction-view__rows {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+}
+
+.interaction-view__row {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+
+.interaction-view__row dt {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.interaction-view__row dd {
+  margin: 0;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.interaction-view__mark {
+  display: block;
+  margin-top: 4px;
+  color: var(--crm-tab-accent);
+  font-size: 11px;
+}
+
+/* История переносов. */
+.interaction-history {
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+.interaction-history__title {
+  margin: 0 0 10px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.interaction-history__list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
+  gap: 8px;
+}
+
+.interaction-history__item {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.interaction-view__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.interaction-cancel {
+  display: grid;
+  gap: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* Напоминание: отдельный блок формы. */
+.interaction-reminder {
+  margin: 0;
+  padding: 0;
+  border: none;
+  display: grid;
+  gap: 12px;
+}

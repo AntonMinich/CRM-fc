@@ -1,0 +1,93 @@
+/* Вкладка «Контактные лица»: остальное оформление — из ClientTable.css. */
+
+.supplier-contacts {
+  display: grid;
+  gap: 14px;
+}
+
+.supplier-contacts__top {
+  display: flex;
+  align-items: center;
+}
+
+/* Таблица внутри вкладки: ширина ограничена полями панели,
+   горизонтальной прокрутки нет даже при длинных значениях. */
+.supplier-contacts__wrap {
+  margin: 0;
+  min-height: 160px;
+  overflow-x: hidden;
+}
+
+.supplier-contacts__hint {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.supplier-contacts-table {
+  width: 100%;
+  /* Перебивает минимальную ширину таблицы клиентов: таблица ужимается по вкладке. */
+  min-width: 0;
+  table-layout: fixed;
+}
+
+/* Длинный текст переносится на следующую строку и не расширяет таблицу. */
+.supplier-contacts-table th,
+.supplier-contacts-table td {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+/* Телефон, статус и пометка основного — в одну строку: номер не рвётся. */
+.supplier-contacts-table th:nth-child(3),
+.supplier-contacts-table td:nth-child(3),
+.supplier-contacts-table th:nth-child(4),
+.supplier-contacts-table td:nth-child(4),
+.supplier-contacts-table th:nth-child(5),
+.supplier-contacts-table td:nth-child(5) {
+  white-space: nowrap;
+  overflow-wrap: normal;
+}
+
+/* Ширины подобраны так, чтобы номер помещался целиком, а разрывы между
+   колонками были равномерными: под «Клиент» оставлено меньше места. */
+.supplier-contacts-table__col--position {
+  width: 22%;
+}
+
+.supplier-contacts-table__col--name {
+  width: 22%;
+}
+
+.supplier-contacts-table__col--phone {
+  width: 26%;
+}
+
+.supplier-contacts-table__col--status {
+  width: 16%;
+}
+
+.supplier-contacts-table__col--primary {
+  width: 14%;
+}
+
+/* Метка статуса: зелёная у работающего контакта, серая у неработающего. */
+.supplier-contact-status {
+  display: inline-block;
+  padding: 2px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.supplier-contact-status--active {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* Строка неработающего контакта приглушена, но остаётся доступной. */
+.supplier-contact-row--inactive {
+  color: var(--text-muted);
+}

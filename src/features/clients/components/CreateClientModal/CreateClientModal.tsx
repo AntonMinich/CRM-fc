@@ -51,6 +51,8 @@ export function CreateClientModal({
   const [submitting, setSubmitting] = useState(false);
   const [users, setUsers] = useState<ResponsibleUser[]>([]);
   const [usersStatus, setUsersStatus] = useState<LoadStatus>('loading');
+  /** У несохранённой карточки просроченных взаимодействий быть не может. */
+  const handleOverdueChange = useCallback(() => undefined, []);
 
   useEffect(() => {
     const dialog = dialogRef.current;
@@ -225,6 +227,13 @@ export function CreateClientModal({
           disabled={submitting}
           onRetryUsers={() => void loadUsers()}
           onOpenDuplicate={handleOpenDuplicate}
+          interactions={{
+            owner: 'client',
+            ownerId: null,
+            overdue: 0,
+            onOverdueChange: handleOverdueChange,
+            entry: null,
+          }}
         />
 
         <p className="client-form__hint">* — обязательные поля</p>

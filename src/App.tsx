@@ -2,12 +2,13 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 
 import { DEFAULT_SECTION_PATH } from './app/navigation';
 import { DEFAULT_CRM_TAB_PATH } from './features/crm/config/tabs';
+import { ReminderNotifications } from './features/interactions/components/ReminderNotifications/ReminderNotifications';
 import CrmPage from './pages/CrmPage';
 import { ClientsTab } from './pages/crm/ClientsTab';
 import { DealsTab } from './pages/crm/DealsTab';
+import { InteractionsTab } from './pages/crm/InteractionsTab';
 import { SuppliersTab } from './pages/crm/SuppliersTab';
 import ServiceDeskPage from './pages/ServiceDeskPage';
-import { ThemeProvider } from './theme/ThemeContext';
 
 /**
  * Маршруты приложения.
@@ -19,7 +20,7 @@ import { ThemeProvider } from './theme/ThemeContext';
  */
 export default function App() {
   return (
-    <ThemeProvider>
+    <>
       <Routes>
         <Route path="/" element={<Navigate to={DEFAULT_SECTION_PATH} replace />} />
         <Route path="/crm" element={<CrmPage />}>
@@ -27,12 +28,16 @@ export default function App() {
           <Route path="deals" element={<DealsTab />} />
           <Route path="clients" element={<ClientsTab />} />
           <Route path="suppliers" element={<SuppliersTab />} />
+          <Route path="interactions" element={<InteractionsTab />} />
           <Route path="*" element={<Navigate to={DEFAULT_CRM_TAB_PATH} replace />} />
         </Route>
         <Route path="/service-desk" element={<ServiceDeskPage />} />
         <Route path="*" element={<Navigate to={DEFAULT_SECTION_PATH} replace />} />
       </Routes>
-    </ThemeProvider>
+
+      {/* Напоминания внутри приложения: опрос сервера раз в минуту. */}
+      <ReminderNotifications />
+    </>
   );
 }
 
