@@ -100,12 +100,13 @@
   color: var(--text-primary);
 }
 
-/* Контейнер таблицы: отступы как у контейнера вкладки, фон непрозрачный. */
+/* Контейнер таблицы: отступы и полупрозрачная поверхность как у списков
+   «Клиенты» и «Поставщики» — сквозь таблицу слегка виден отпечаток. */
 .client-table-wrap.interactions-board__wrap {
   flex: 1 1 auto;
   min-height: 160px;
   margin: 0 var(--crm-toolbar-padding-x);
-  background-color: var(--surface);
+  background-color: var(--clients-surface);
   border: 1px solid var(--clients-surface-border);
   border-radius: 12px;
   overflow-x: hidden;
