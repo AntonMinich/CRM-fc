@@ -236,8 +236,6 @@ export function CreateClientModal({
           }}
         />
 
-        <p className="client-form__hint">* — обязательные поля</p>
-
         {formError ? (
           <p className="client-form__error" role="alert">
             {formError}

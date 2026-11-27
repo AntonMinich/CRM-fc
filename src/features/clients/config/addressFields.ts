@@ -63,8 +63,8 @@ export const ADDRESS_BLOCKS: readonly {
     fields: [
       { field: 'regPostalCode', label: 'Индекс', span: 3 },
       { field: 'regCountry', label: 'Страна', span: 3 },
-      { field: 'regCity', label: 'Населённый пункт', span: 6 },
-      { field: 'regStreet', label: 'Улица', span: 6 },
+      { field: 'regCity', label: 'Населённый пункт', span: 3 },
+      { field: 'regStreet', label: 'Улица', span: 3 },
       { field: 'regHouse', label: 'Дом', span: 2 },
       { field: 'regBuilding', label: 'Корпус', span: 2 },
       { field: 'regApartment', label: 'Квартира', span: 2 },
@@ -76,8 +76,8 @@ export const ADDRESS_BLOCKS: readonly {
     fields: [
       { field: 'resPostalCode', label: 'Индекс', span: 3 },
       { field: 'resCountry', label: 'Страна', span: 3 },
-      { field: 'resCity', label: 'Населённый пункт', span: 6 },
-      { field: 'resStreet', label: 'Улица', span: 6 },
+      { field: 'resCity', label: 'Населённый пункт', span: 3 },
+      { field: 'resStreet', label: 'Улица', span: 3 },
       { field: 'resHouse', label: 'Дом', span: 2 },
       { field: 'resBuilding', label: 'Корпус', span: 2 },
       { field: 'resApartment', label: 'Квартира', span: 2 },

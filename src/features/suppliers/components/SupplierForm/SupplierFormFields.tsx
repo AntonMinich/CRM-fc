@@ -5,7 +5,7 @@
  * берётся из клиентских классов (`clients/components/ClientForm/ClientForm.css`).
  */
 
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import { DETAIL_BLOCKS, DETAIL_LIMITS } from '../../config/supplierFields';
@@ -52,6 +52,9 @@ const FIELD_SLUGS: Record<keyof SupplierFormValues, string> = {
   directorName: 'director-name',
 };
 
+/** Подсказка пустого поля «Полное наименование компании». */
+const NAME_PLACEHOLDER = 'ООО "Компания"';
+
 /** Вкладки окна: «Установочные данные» открывается по умолчанию. */
 const TABS: readonly { id: SupplierTab; label: string }[] = [
   { id: 'main', label: 'Установочные данные' },
@@ -97,6 +100,16 @@ export function SupplierFormFields({
   const fieldError = (field: keyof SupplierFormValues) => form.errors[field];
   /** Найденный поставщик с таким же УНП: наименование показывается ссылкой. */
   const unpDuplicate = form.unpDuplicate;
+
+  /** Поля блока с включённым флажком «Совпадает…» развёрнуты вручную для просмотра. */
+  const [expandedLinked, setExpandedLinked] = useState(false);
+  /** Подсказка «ООО "Компания"» скрывается, пока поле в фокусе. */
+  const [nameFocused, setNameFocused] = useState(false);
+
+  // Флажок включён заново — блок снова свёрнут.
+  useEffect(() => {
+    if (form.sameAddress) setExpandedLinked(false);
+  }, [form.sameAddress]);
 
   const tabId = (tab: SupplierTab) => `${idPrefix}-tab-${tab}`;
   const panelId = (tab: SupplierTab) => `${idPrefix}-panel-${tab}`;
@@ -153,15 +166,15 @@ export function SupplierFormFields({
       </div>
 
       <div
-        className="client-form__fields"
+        className="client-form__fields client-form__fields--main"
         role="tabpanel"
         id={panelId('main')}
         aria-labelledby={tabId('main')}
         hidden={form.activeTab !== 'main'}
       >
-        <label className="client-field" htmlFor={fieldId('name')}>
+        <label className="client-field client-field--span-4" htmlFor={fieldId('name')}>
           <span className="client-field__label">
-            Наименование компании <span className="client-field__required">*</span>
+            Полное наименование компании <span className="client-field__required">*</span>
           </span>
           <input
             id={fieldId('name')}
@@ -169,6 +182,10 @@ export function SupplierFormFields({
             ref={form.refs.name}
             value={form.values.name}
             onChange={(event) => form.updateField('name', event.target.value)}
+            // Подсказка видна, пока поле пустое и без фокуса; значением не является.
+            placeholder={nameFocused ? undefined : NAME_PLACEHOLDER}
+            onFocus={() => setNameFocused(true)}
+            onBlur={() => setNameFocused(false)}
             maxLength={SUPPLIER_LIMITS.name}
             required
             aria-required="true"
@@ -183,7 +200,7 @@ export function SupplierFormFields({
           ) : null}
         </label>
 
-        <label className="client-field" htmlFor={fieldId('unp')}>
+        <label className="client-field client-field--span-2" htmlFor={fieldId('unp')}>
           <span className="client-field__label">
             УНП <span className="client-field__required">*</span>
           </span>
@@ -228,7 +245,7 @@ export function SupplierFormFields({
           ) : null}
         </label>
 
-        <label className="client-field" htmlFor={fieldId('phone')}>
+        <label className="client-field client-field--span-3" htmlFor={fieldId('phone')}>
           <span className="client-field__label">
             Телефон <span className="client-field__required">*</span>
           </span>
@@ -266,7 +283,7 @@ export function SupplierFormFields({
           ) : null}
         </label>
 
-        <label className="client-field" htmlFor={fieldId('email')}>
+        <label className="client-field client-field--span-3" htmlFor={fieldId('email')}>
           <span className="client-field__label">E-mail</span>
           <input
             id={fieldId('email')}
@@ -289,15 +306,15 @@ export function SupplierFormFields({
         </label>
 
         {/* Комментарий: необязательное многострочное поле, как в карточке клиента. */}
-        <label className="client-field" htmlFor={fieldId('comment')}>
+        <label className="client-field client-field--span-6" htmlFor={fieldId('comment')}>
           <span className="client-field__label">Комментарий</span>
           <textarea
             id={fieldId('comment')}
-            className="client-field__input client-field__textarea"
+            className="client-field__input client-field__textarea client-field__textarea--compact"
             ref={form.refs.comment}
             value={form.values.comment}
             onChange={(event) => form.updateField('comment', event.target.value)}
-            rows={4}
+            rows={3}
             maxLength={SUPPLIER_LIMITS.comment}
             aria-invalid={Boolean(fieldError('comment'))}
             aria-describedby={fieldError('comment') ? errorId('comment') : undefined}
@@ -315,18 +332,39 @@ export function SupplierFormFields({
       </div>
 
       <div
-        className="client-form__fields"
+        className="client-form__fields client-form__fields--addresses"
         role="tabpanel"
         id={panelId('details')}
         aria-labelledby={tabId('details')}
         hidden={form.activeTab !== 'details'}
       >
-        {DETAIL_BLOCKS.map((block, index) => (
+        {DETAIL_BLOCKS.map((block, index) => {
+          // Блок с флажком «Совпадает…»: при включённом флажке поля скрываются,
+          // а стрелка у заголовка раскрывает их только для просмотра.
+          const collapsible = Boolean(block.linked) && form.sameAddress;
+          const fieldsVisible = !collapsible || expandedLinked;
+          const gridId = `${idPrefix}-address-grid-${index}`;
+          return (
           <Fragment key={block.title}>
             {/* Линия — отдельный элемент над заголовком следующего блока. */}
             {index > 0 ? <div className="client-address__divider" aria-hidden="true" /> : null}
             <fieldset className="client-address">
-              <legend className="client-address__title">{block.title}</legend>
+              <legend className="client-address__title">
+                {collapsible ? (
+                  <button
+                    type="button"
+                    className="client-address__toggle"
+                    aria-expanded={expandedLinked}
+                    aria-controls={gridId}
+                    onClick={() => setExpandedLinked((previous) => !previous)}
+                  >
+                    <span>{block.title}</span>
+                    <span className="client-address__arrow" aria-hidden="true" />
+                  </button>
+                ) : (
+                  block.title
+                )}
+              </legend>
               {block.linked ? (
                 <label className="client-address__same" htmlFor={`${idPrefix}-post-same`}>
                   <input
@@ -340,7 +378,7 @@ export function SupplierFormFields({
                   Совпадает с адресом регистрации
                 </label>
               ) : null}
-              <div className="client-address__grid">
+              <div className="client-address__grid" id={gridId} hidden={!fieldsVisible}>
                 {block.fields.map(({ field, label, span, upper }) => {
                   // Поля скопированного адреса недоступны для правки.
                   const locked = Boolean(block.linked) && form.sameAddress;
@@ -380,7 +418,8 @@ export function SupplierFormFields({
               </div>
             </fieldset>
           </Fragment>
-        ))}
+          );
+        })}
       </div>
 
       <div

@@ -20,7 +20,7 @@
 }
 
 .client-modal__title {
-  margin: 0 0 26px;
+  margin: 0 0 16px;
   font-size: 23px;
   font-weight: 600;
 }
@@ -66,7 +66,7 @@
 
 .client-form__fields {
   display: grid;
-  gap: 18px;
+  gap: 12px;
 }
 
 /* Скрытая вкладка не должна перебивать display: grid панели. */
@@ -74,11 +74,39 @@
   display: none;
 }
 
+/* Главная вкладка: ФИО в одну строку, Телефон и E-mail — в следующей.
+   Шесть колонок: 2 + 2 + 2 и 3 + 3; поля на всю ширину занимают все шесть. */
+.client-form__fields--main {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 12px var(--field-padding-x);
+}
+
+/* Вкладка «Реквизиты»: между блоками адресов — 16 px. */
+.client-form__fields--addresses {
+  gap: 16px;
+}
+
+.client-field--span-2 {
+  grid-column: span 2;
+}
+
+.client-field--span-3 {
+  grid-column: span 3;
+}
+
+.client-field--span-4 {
+  grid-column: span 4;
+}
+
+.client-field--span-6 {
+  grid-column: 1 / -1;
+}
+
 /* Вкладки окна: оформление как у верхнего меню CRM, работает в обеих темах. */
 .client-tabs {
   display: flex;
   gap: var(--crm-tabs-gap);
-  margin-bottom: 22px;
+  margin-bottom: 16px;
   border-bottom: 1px solid var(--border);
 }
 
@@ -167,10 +195,45 @@
   font-weight: 600;
 }
 
+/* Заголовок блока со стрелкой: нажатие раскрывает и сворачивает поля. */
+.client-address__toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: inherit;
+  font: inherit;
+}
+
+.client-address__toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Стрелка — треугольник из рамок: вниз в свёрнутом виде, вверх в развёрнутом. */
+.client-address__arrow {
+  width: 0;
+  height: 0;
+  border-top: 5px solid currentColor;
+  border-right: 4px solid transparent;
+  border-left: 4px solid transparent;
+  transition: transform 0.15s ease;
+}
+
+.client-address__toggle[aria-expanded='true'] .client-address__arrow {
+  transform: rotate(180deg);
+}
+
 .client-address__grid {
   display: grid;
   grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 18px var(--field-padding-x);
+  gap: 12px var(--field-padding-x);
+}
+
+/* Скрытый при включённом флажке блок: класс с display: grid не должен
+   перебивать атрибут hidden. */
+.client-address__grid[hidden] {
+  display: none;
 }
 
 /* Индекс и Страна — половина строки, Населённый пункт и Улица — вся строка,
@@ -261,6 +324,11 @@
   min-height: 96px;
   line-height: 1.45;
   resize: vertical;
+}
+
+/* Комментарий в формах клиента и поставщика — компактный, около трёх строк. */
+.client-field__textarea--compact {
+  min-height: 72px;
 }
 
 /* Счётчик символов под полем: «N / 500». */
@@ -396,6 +464,20 @@
   .client-address__field--span-2,
   .client-address__field--span-3,
   .client-address__field--span-6 {
+    grid-column: 1 / -1;
+  }
+}
+
+/* Уже 560 px: поля главной вкладки идут по одному в строке. */
+@media (max-width: 559px) {
+  .client-form__fields--main {
+    grid-template-columns: 1fr;
+  }
+
+  .client-field--span-2,
+  .client-field--span-3,
+  .client-field--span-4,
+  .client-field--span-6 {
     grid-column: 1 / -1;
   }
 }

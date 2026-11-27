@@ -309,8 +309,6 @@ export function EditClientModal({
             }}
           />
 
-          <p className="client-form__hint">* — обязательные поля</p>
-
           {conflict ? (
             <div className="client-form__conflict" role="alert">
               <span>{CONFLICT_MESSAGE}</span>

@@ -74,8 +74,8 @@ export const DETAIL_BLOCKS: readonly SupplierBlockConfig[] = [
     fields: [
       { field: 'regPostalCode', label: 'Индекс', span: 3 },
       { field: 'regCountry', label: 'Страна', span: 3 },
-      { field: 'regCity', label: 'Населённый пункт', span: 6 },
-      { field: 'regStreet', label: 'Улица', span: 6 },
+      { field: 'regCity', label: 'Населённый пункт', span: 3 },
+      { field: 'regStreet', label: 'Улица', span: 3 },
       { field: 'regHouse', label: 'Дом', span: 2 },
       { field: 'regBuilding', label: 'Корпус', span: 2 },
       { field: 'regApartment', label: 'Квартира', span: 2 },
@@ -87,8 +87,8 @@ export const DETAIL_BLOCKS: readonly SupplierBlockConfig[] = [
     fields: [
       { field: 'postPostalCode', label: 'Индекс', span: 3 },
       { field: 'postCountry', label: 'Страна', span: 3 },
-      { field: 'postCity', label: 'Населённый пункт', span: 6 },
-      { field: 'postStreet', label: 'Улица', span: 6 },
+      { field: 'postCity', label: 'Населённый пункт', span: 3 },
+      { field: 'postStreet', label: 'Улица', span: 3 },
       { field: 'postHouse', label: 'Дом', span: 2 },
       { field: 'postBuilding', label: 'Корпус', span: 2 },
       { field: 'postApartment', label: 'Квартира', span: 2 },
@@ -97,9 +97,11 @@ export const DETAIL_BLOCKS: readonly SupplierBlockConfig[] = [
   {
     title: 'Банковские реквизиты и руководитель',
     fields: [
-      { field: 'bankAccount', label: 'Расчётный счёт', span: 6, upper: true },
-      { field: 'bankName', label: 'Банк', span: 6 },
+      // Порядок подобран под раскладку: Расчётный счёт + BIC/SWIFT в одной
+      // строке, Банк + Директор — в следующей.
+      { field: 'bankAccount', label: 'Расчётный счёт', span: 3, upper: true },
       { field: 'bicSwift', label: 'BIC/SWIFT', span: 3, upper: true },
+      { field: 'bankName', label: 'Банк', span: 3 },
       { field: 'directorName', label: 'Директор', span: 3 },
     ],
   },

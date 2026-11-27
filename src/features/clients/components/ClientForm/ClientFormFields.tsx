@@ -6,7 +6,7 @@
  * `idPrefix`, чтобы оба окна могли находиться в разметке одновременно.
  */
 
-import { Fragment } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 
 import { ADDRESS_BLOCKS, ADDRESS_LIMITS } from '../../config/addressFields';
@@ -89,6 +89,14 @@ export function ClientFormFields({
   /** Найденный дубль телефона: ФИО показывается ссылкой на его карточку. */
   const duplicate = form.phoneDuplicate;
 
+  /** Поля блока с включённым флажком «Совпадает…» развёрнуты вручную для просмотра. */
+  const [expandedLinked, setExpandedLinked] = useState(false);
+
+  // Флажок включён заново — блок снова свёрнут.
+  useEffect(() => {
+    if (form.sameAddress) setExpandedLinked(false);
+  }, [form.sameAddress]);
+
   const tabId = (tab: ClientTab) => `${idPrefix}-tab-${tab}`;
   const panelId = (tab: ClientTab) => `${idPrefix}-panel-${tab}`;
 
@@ -144,13 +152,13 @@ export function ClientFormFields({
       </div>
 
       <div
-        className="client-form__fields"
+        className="client-form__fields client-form__fields--main"
         role="tabpanel"
         id={panelId('main')}
         aria-labelledby={tabId('main')}
         hidden={form.activeTab !== 'main'}
       >
-      <label className="client-field" htmlFor={fieldId('lastName')}>
+      <label className="client-field client-field--span-2" htmlFor={fieldId('lastName')}>
         <span className="client-field__label">Фамилия</span>
         <input
           id={fieldId('lastName')}
@@ -164,7 +172,7 @@ export function ClientFormFields({
         />
       </label>
 
-      <label className="client-field" htmlFor={fieldId('firstName')}>
+      <label className="client-field client-field--span-2" htmlFor={fieldId('firstName')}>
         <span className="client-field__label">
           Имя <span className="client-field__required">*</span>
         </span>
@@ -189,7 +197,7 @@ export function ClientFormFields({
         ) : null}
       </label>
 
-      <label className="client-field" htmlFor={fieldId('middleName')}>
+      <label className="client-field client-field--span-2" htmlFor={fieldId('middleName')}>
         <span className="client-field__label">Отчество</span>
         <input
           id={fieldId('middleName')}
@@ -203,7 +211,7 @@ export function ClientFormFields({
         />
       </label>
 
-      <label className="client-field" htmlFor={fieldId('phone')}>
+      <label className="client-field client-field--span-3" htmlFor={fieldId('phone')}>
         <span className="client-field__label">
           Телефон <span className="client-field__required">*</span>
         </span>
@@ -254,7 +262,7 @@ export function ClientFormFields({
         ) : null}
       </label>
 
-      <label className="client-field" htmlFor={fieldId('email')}>
+      <label className="client-field client-field--span-3" htmlFor={fieldId('email')}>
         <span className="client-field__label">E-mail</span>
         <input
           id={fieldId('email')}
@@ -276,7 +284,7 @@ export function ClientFormFields({
         ) : null}
       </label>
 
-      <label className="client-field" htmlFor={fieldId('responsibleUserId')}>
+      <label className="client-field client-field--span-6" htmlFor={fieldId('responsibleUserId')}>
         <span className="client-field__label">
           Ответственный <span className="client-field__required">*</span>
         </span>
@@ -317,15 +325,15 @@ export function ClientFormFields({
       </label>
 
       {/* Комментарий: необязательное многострочное поле после ответственного. */}
-      <label className="client-field" htmlFor={fieldId('comment')}>
+      <label className="client-field client-field--span-6" htmlFor={fieldId('comment')}>
         <span className="client-field__label">Комментарий</span>
         <textarea
           id={fieldId('comment')}
-          className="client-field__input client-field__textarea"
+          className="client-field__input client-field__textarea client-field__textarea--compact"
           ref={form.refs.comment}
           value={form.values.comment}
           onChange={(event) => form.updateField('comment', event.target.value)}
-          rows={4}
+          rows={3}
           maxLength={CLIENT_LIMITS.comment}
           aria-invalid={Boolean(fieldError('comment'))}
           aria-describedby={fieldError('comment') ? errorId('comment') : undefined}
@@ -344,18 +352,39 @@ export function ClientFormFields({
       </div>
 
       <div
-        className="client-form__fields"
+        className="client-form__fields client-form__fields--addresses"
         role="tabpanel"
         id={panelId('addresses')}
         aria-labelledby={tabId('addresses')}
         hidden={form.activeTab !== 'addresses'}
       >
-        {ADDRESS_BLOCKS.map((block, index) => (
+        {ADDRESS_BLOCKS.map((block, index) => {
+          // Блок с флажком «Совпадает…»: при включённом флажке поля скрываются,
+          // а стрелка у заголовка раскрывает их только для просмотра.
+          const collapsible = Boolean(block.linked) && form.sameAddress;
+          const fieldsVisible = !collapsible || expandedLinked;
+          const gridId = `${idPrefix}-address-grid-${index}`;
+          return (
           <Fragment key={block.title}>
             {/* Линия — отдельный элемент над заголовком следующего блока. */}
             {index > 0 ? <div className="client-address__divider" aria-hidden="true" /> : null}
             <fieldset className="client-address">
-              <legend className="client-address__title">{block.title}</legend>
+              <legend className="client-address__title">
+                {collapsible ? (
+                  <button
+                    type="button"
+                    className="client-address__toggle"
+                    aria-expanded={expandedLinked}
+                    aria-controls={gridId}
+                    onClick={() => setExpandedLinked((previous) => !previous)}
+                  >
+                    <span>{block.title}</span>
+                    <span className="client-address__arrow" aria-hidden="true" />
+                  </button>
+                ) : (
+                  block.title
+                )}
+              </legend>
               {block.linked ? (
                 <label className="client-address__same" htmlFor={`${idPrefix}-res-same`}>
                   <input
@@ -369,7 +398,7 @@ export function ClientFormFields({
                   Совпадает с адресом регистрации
                 </label>
               ) : null}
-              <div className="client-address__grid">
+              <div className="client-address__grid" id={gridId} hidden={!fieldsVisible}>
               {block.fields.map(({ field, label, span }) => {
                 // Поля скопированного адреса недоступны для правки.
                 const locked = Boolean(block.linked) && form.sameAddress;
@@ -404,7 +433,8 @@ export function ClientFormFields({
             </div>
           </fieldset>
           </Fragment>
-        ))}
+          );
+        })}
       </div>
       <div
         className="client-form__fields client-form__fields--interactions"

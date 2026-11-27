@@ -436,8 +436,6 @@ export function SupplierModal({
             }}
           />
 
-          <p className="client-form__hint">* — обязательные поля</p>
-
           {warning ? (
             <div className="supplier-warning" role="status">
               <span className="supplier-warning__icon" aria-hidden="true">
