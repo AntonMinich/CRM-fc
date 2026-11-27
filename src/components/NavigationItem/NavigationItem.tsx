@@ -3,11 +3,13 @@ import { NavLink } from 'react-router-dom';
 import type { Section } from '../../app/navigation';
 import { CrmIcon } from '../icons/CrmIcon';
 import { ServiceDeskIcon } from '../icons/ServiceDeskIcon';
+import { TasksIcon } from '../icons/TasksIcon';
 import './NavigationItem.css';
 
 const ICONS = {
   crm: CrmIcon,
   'service-desk': ServiceDeskIcon,
+  tasks: TasksIcon,
 } as const;
 
 interface NavigationItemProps {

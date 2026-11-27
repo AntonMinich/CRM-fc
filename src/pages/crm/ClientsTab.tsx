@@ -48,7 +48,7 @@ export function ClientsTab() {
   const entry = useMemo<InteractionEntry | null>(() => {
     if (!entryOwnerId || !entryInteractionId) return null;
     const mode: InteractionModalMode =
-      entryMode === 'plan' || entryMode === 'reschedule' || entryMode === 'result'
+      entryMode === 'plan' || entryMode === 'result'
         ? entryMode
         : 'view';
     return { interactionId: entryInteractionId, mode };

@@ -24,6 +24,14 @@
   white-space: nowrap;
 }
 
+/* Колокольчик уведомлений и аватар: справа, одной группой. */
+.header__tools {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 12px;
+}
+
 .header__avatar {
   display: flex;
   flex: none;

@@ -1,0 +1,330 @@
+/* Раздел «Задачи»: переключатель вида, таблица и канбан.
+   Контейнер, панель и фильтры берутся из вкладки «Взаимодействия». */
+
+/* Раздел занимает высоту окна: прокручиваются только таблица и колонки,
+   нижний отступ остаётся видимым, как на вкладке «Клиенты». */
+.tasks-section {
+  height: 100%;
+  min-height: 0;
+}
+
+/* Отступы страницы — как на вкладке «Клиенты»: панель 26/32/22, таблица 32. */
+.tasks-section .interactions-board__top {
+  padding: var(--crm-toolbar-padding-top) var(--crm-toolbar-padding-x) var(--crm-toolbar-gap);
+}
+
+.tasks-section .interactions-board__filters {
+  margin: 0 0 var(--crm-toolbar-gap);
+}
+
+/* Панель пагинации под таблицей: видна всегда. */
+.tasks-pagination {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  padding: var(--crm-toolbar-gap) var(--crm-toolbar-padding-x) 0;
+}
+
+.tasks-pagination__state {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Тип элемента на карточке канбана: метки одного размера, разные по цвету. */
+.task-card__type {
+  align-self: flex-start;
+  padding: 1px 8px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 1.6;
+  white-space: nowrap;
+}
+
+.task-card__type--task {
+  color: #8fb4ff;
+}
+
+.task-card__type--interaction {
+  color: #d9a63a;
+}
+
+/* Переключатель «Список» / «Канбан». */
+.tasks-view {
+  display: flex;
+  gap: 4px;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--field-radius);
+  background-color: var(--surface);
+}
+
+.tasks-view__button {
+  min-height: calc(var(--field-height) - 8px);
+  padding: 0 14px;
+  border-radius: 6px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.tasks-view__button--active {
+  background-color: var(--create-button-bg);
+  color: var(--create-button-text);
+  font-weight: 600;
+}
+
+.tasks-view__button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 1px;
+}
+
+/* Таблица раздела: те же отступы ячеек, что на вкладке «Взаимодействия». */
+.tasks-table {
+  min-width: var(--table-min-width);
+}
+
+.tasks-table th,
+.tasks-table td {
+  padding: 12px 16px;
+}
+
+.tasks-table__col--due {
+  width: 15%;
+}
+
+.tasks-table__col--title {
+  width: 24%;
+}
+
+.tasks-table__col--kind {
+  width: 15%;
+}
+
+.tasks-table__col--counterparty {
+  width: 19%;
+}
+
+.tasks-table__col--status {
+  width: 12%;
+}
+
+.tasks-table__col--responsible {
+  width: 12%;
+}
+
+.tasks-table__col--action {
+  width: 5%;
+}
+
+/* Срок, тип и статус не переносятся. */
+.tasks-table td:first-child,
+.tasks-table td:nth-child(3),
+.tasks-table .interaction-status {
+  white-space: nowrap;
+}
+
+.tasks-table__action {
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.tasks-table__action:hover {
+  background-color: var(--nav-hover-bg);
+}
+
+/* Канбан: колонки равной ширины во всю ширину контейнера, прокрутка внутри. */
+.tasks-kanban {
+  display: flex;
+  flex: 1 1 auto;
+  gap: var(--crm-toolbar-gap);
+  min-height: 0;
+  margin: 0 var(--crm-toolbar-padding-x);
+  padding-bottom: 4px;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.tasks-kanban__column {
+  display: flex;
+  flex: 1 1 0;
+  flex-direction: column;
+  min-width: var(--kanban-column-min-width);
+  min-height: 0;
+  max-height: 100%;
+  border: 1px solid var(--clients-surface-border);
+  border-radius: var(--kanban-column-radius);
+  background-color: var(--clients-surface);
+  overflow: hidden;
+}
+
+/* Шапка колонки закреплена: прокручивается только список карточек. */
+.tasks-kanban__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  border-top: 3px solid transparent;
+  border-bottom: 1px solid var(--clients-row-line);
+  background-color: var(--clients-head-surface);
+}
+
+/* Пастельные оттенки шапок: тонкая линия сверху, фон карточек не меняется. */
+.tasks-kanban__head--today {
+  border-top-color: #e8a87c;
+}
+
+.tasks-kanban__head--tomorrow {
+  border-top-color: #d9c76a;
+}
+
+.tasks-kanban__head--week {
+  border-top-color: #7fb3d5;
+}
+
+.tasks-kanban__head--later {
+  border-top-color: #a99bd6;
+}
+
+.tasks-kanban__head--done {
+  border-top-color: #7fbf9a;
+}
+
+/* Период колонки «Завершено»: компактные поля дат в шапке. */
+.tasks-kanban__period {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  width: 100%;
+}
+
+.tasks-kanban__date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-muted);
+  font-size: 11px;
+}
+
+.tasks-kanban__date input {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 6px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background-color: var(--surface);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 12px;
+}
+
+.tasks-kanban__title {
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.tasks-kanban__count {
+  color: var(--text-muted);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.tasks-kanban__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  overflow-y: auto;
+}
+
+.tasks-kanban__empty {
+  margin: 0;
+  padding: 16px 4px;
+  color: var(--text-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Карточка элемента канбана: открывается по клику, перетаскивания нет. */
+.task-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 12px;
+  border: 1px solid var(--clients-surface-border);
+  border-radius: var(--table-row-radius);
+  background-color: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+
+.task-card__title,
+.task-card__due,
+.task-card__counterparty,
+.task-card__meta {
+  display: block;
+}
+
+.task-card__title {
+  margin: 0;
+  color: var(--text-primary);
+  font-size: 13px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.task-card__due,
+.task-card__counterparty {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.task-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.task-card__mark {
+  padding: 1px 6px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--text-muted);
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+.task-card__action {
+  align-self: flex-start;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 12px;
+}
+
+.task-card__action:hover {
+  background-color: var(--nav-hover-bg);
+}
+
+@media (max-width: 650px) {
+  .tasks-kanban {
+    margin: 0 var(--kanban-padding-x-narrow);
+  }
+
+  .tasks-table {
+    min-width: 0;
+  }
+}

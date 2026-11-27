@@ -25,11 +25,12 @@
   gap: 6px;
 }
 
-/* Быстрые фильтры: выбранный выделяется цветом темы. */
+/* Быстрые фильтры: выбранный выделяется цветом темы.
+   Скругление — половина высоты кнопки, без формы «таблетки». */
 .interactions__filter {
   padding: 6px 12px;
   border: 1px solid var(--border);
-  border-radius: 999px;
+  border-radius: 8px;
   background: none;
   color: var(--text-muted);
   font-family: inherit;
@@ -171,6 +172,12 @@
 .interaction-status--overdue {
   border-color: var(--error-text);
   color: var(--error-text);
+}
+
+/* «Выполняется»: янтарный, отличается от «Запланировано» и «Просрочено». */
+.interaction-status--in_progress {
+  border-color: #d9a63a;
+  color: #d9a63a;
 }
 
 .interaction-status--done {

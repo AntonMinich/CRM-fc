@@ -5,14 +5,15 @@
   padding-bottom: 24px;
 }
 
-/* Панель кнопок и поиска: одна строка во всю ширину контейнера. */
+/* Панель кнопок и поиска: одна строка во всю ширину контейнера.
+   От вкладок CRM до панели — 20 px, до фильтров — 16 px. */
 .interactions-board__top {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: var(--crm-toolbar-padding-top) var(--crm-toolbar-padding-x) 16px;
+  padding: 20px var(--crm-toolbar-padding-x) 16px;
 }
 
 .interactions-board__top .interactions__actions {

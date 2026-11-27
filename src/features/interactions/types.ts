@@ -7,7 +7,7 @@ export type InteractionType = 'call' | 'meeting' | 'letter' | 'other';
 export type InteractionStatus = 'planned' | 'done' | 'cancelled';
 
 /** Быстрый фильтр списка. */
-export type InteractionFilter = 'all' | 'planned' | 'overdue' | 'done';
+export type InteractionFilter = 'all' | 'planned' | 'in_progress' | 'overdue' | 'done';
 
 /** Вариант напоминания. */
 export type ReminderOption = 'none' | 'at_start' | 'before_15' | 'custom';
@@ -75,6 +75,7 @@ export interface InteractionDto {
   created_at: string;
   updated_at: string;
   is_overdue: boolean;
+  is_in_progress: boolean;
   can_edit_result: boolean;
   /** Сколько раз переносили: нужен значок «Перенесено» в списке. */
   reschedule_count?: number;
@@ -141,6 +142,7 @@ export interface Interaction {
   createdAt: string;
   updatedAt: string;
   isOverdue: boolean;
+  isInProgress: boolean;
   canEditResult: boolean;
   /** Сколько раз переносили: значок «Перенесено» в списке. */
   rescheduleCount: number;
@@ -177,7 +179,7 @@ export interface InteractionFormValues {
 export type InteractionFormErrors = Partial<Record<keyof InteractionFormValues, string>>;
 
 /** Режим окна взаимодействия. */
-export type InteractionModalMode = 'plan' | 'reschedule' | 'result' | 'view';
+export type InteractionModalMode = 'plan' | 'result' | 'view';
 
 /** Переход из напоминания: какую запись открыть и в каком режиме. */
 export interface InteractionEntry {

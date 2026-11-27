@@ -18,6 +18,9 @@ export const RESULT_EDIT_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** Интервал повторного напоминания о просроченном взаимодействии. */
 export const REMINDER_REPEAT_MS = 24 * 60 * 60 * 1000;
 
+/** Сколько длится встреча: в это окно взаимодействие считается «Выполняется». */
+export const INTERACTION_IN_PROGRESS_MS = 60 * 60 * 1000;
+
 const INTERACTION_SELECT = `
   SELECT i.*,
          u.last_name AS responsible_last_name,
@@ -69,11 +72,35 @@ function nextTimestamp(previousIso) {
   return new Date(value).toISOString();
 }
 
-/** Запланированное взаимодействие с прошедшим временем считается просроченным. */
-function isOverdue(row, now) {
-  if (row.status !== 'planned' || !row.planned_at) return false;
+/**
+ * Статус взаимодействия по времени — единый расчёт для таблиц, фильтров,
+ * счётчика просроченных, карточек и уведомлений:
+ * до начала «Запланировано», с начала и час после — «Выполняется», позже «Просрочено».
+ */
+export function interactionStatus(row, now = Date.now()) {
+  if (row.status !== 'planned') return row.status;
+  if (!row.planned_at) return 'planned';
   const planned = Date.parse(row.planned_at);
-  return Number.isFinite(planned) && planned < now;
+  if (!Number.isFinite(planned) || planned > now) return 'planned';
+  return now - planned <= INTERACTION_IN_PROGRESS_MS ? 'in_progress' : 'overdue';
+}
+
+/** Запланированное взаимодействие с прошедшим часом после начала просрочено. */
+function isOverdue(row, now) {
+  return interactionStatus(row, now) === 'overdue';
+}
+
+/** Взаимодействие идёт: час после начала встречи. */
+function isInProgress(row, now) {
+  return interactionStatus(row, now) === 'in_progress';
+}
+
+/** Статус для показа и фильтров: расчётные «выполняется» и «просрочено». */
+export function interactionViewStatus(item) {
+  if (item.status !== 'planned') return item.status;
+  if (item.is_overdue) return 'overdue';
+  if (item.is_in_progress) return 'in_progress';
+  return 'planned';
 }
 
 /** Правку результата может выполнять автор в течение 24 часов после внесения. */
@@ -127,6 +154,7 @@ export function toInteractionResponse(
     created_at: row.created_at,
     updated_at: row.updated_at,
     is_overdue: isOverdue(row, now),
+    is_in_progress: isInProgress(row, now),
     can_edit_result: canEditResult(row, currentUserId, now),
     /** Сколько раз взаимодействие переносили: нужен значок «Перенесено» в списке. */
     reschedule_count: rescheduleCount,
@@ -184,13 +212,7 @@ export function listInteractions({ clientId = null, supplierId = null, status = 
   const overdue = all.filter((item) => item.is_overdue).length;
 
   const filtered =
-    status === 'overdue'
-      ? all.filter((item) => item.is_overdue)
-      : status === 'planned'
-        ? all.filter((item) => item.status === 'planned')
-        : status === 'done'
-          ? all.filter((item) => item.status === 'done')
-          : all;
+    status === 'all' ? all : all.filter((item) => interactionViewStatus(item) === status);
 
   const items = sortInteractions(filtered);
   return { items, total: items.length, overdue };
@@ -300,9 +322,9 @@ export function listAllInteractions(filters = {}, { currentUserId = getCurrentUs
   const dateTo = filters.dateTo ?? null;
 
   const filtered = all.filter((item) => {
-    if (filters.status === 'overdue' && !item.is_overdue) return false;
-    if (filters.status === 'planned' && item.status !== 'planned') return false;
-    if (filters.status === 'done' && item.status !== 'done') return false;
+    if (filters.status && filters.status !== 'all' && interactionViewStatus(item) !== filters.status) {
+      return false;
+    }
 
     if (filters.mine) {
       if (item.responsible_user_id !== currentUserId) return false;

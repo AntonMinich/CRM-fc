@@ -115,6 +115,7 @@ function toInteraction(dto: InteractionDto): Interaction {
     createdAt: dto.created_at,
     updatedAt: dto.updated_at,
     isOverdue: dto.is_overdue === true,
+    isInProgress: dto.is_in_progress === true,
     canEditResult: dto.can_edit_result === true,
     rescheduleCount:
       typeof dto.reschedule_count === 'number'
@@ -225,24 +226,6 @@ export async function updateInteraction(
     body: JSON.stringify(payload),
     signal,
   });
-  return toInteraction(dto);
-}
-
-/** Перенос: новая дата, причина и напоминание. */
-export async function rescheduleInteraction(
-  id: string,
-  payload: InteractionRequestPayload,
-  signal?: AbortSignal,
-): Promise<Interaction> {
-  const dto = await request<InteractionDto>(
-    `/interactions/${encodeURIComponent(id)}/reschedule`,
-    {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-      signal,
-    },
-  );
   return toInteraction(dto);
 }
 

@@ -3,17 +3,21 @@
 import { STATUS_LABELS } from '../config/interactionFields';
 import type { Interaction } from '../types';
 
-/** Статус для показа: просроченное запланированное показывается как «Просрочено». */
+/**
+ * Статус для показа: начавшееся взаимодействие — «Выполняется»,
+ * прошедшее больше часа после начала — «Просрочено».
+ */
 export function interactionStatusKey(
-  interaction: Pick<Interaction, 'status' | 'isOverdue'>,
-): 'planned' | 'overdue' | 'done' | 'cancelled' {
-  if (interaction.status === 'planned') return interaction.isOverdue ? 'overdue' : 'planned';
-  return interaction.status;
+  interaction: Pick<Interaction, 'status' | 'isOverdue' | 'isInProgress'>,
+): 'planned' | 'in_progress' | 'overdue' | 'done' | 'cancelled' {
+  if (interaction.status !== 'planned') return interaction.status;
+  if (interaction.isOverdue) return 'overdue';
+  return interaction.isInProgress ? 'in_progress' : 'planned';
 }
 
 /** Подпись статуса. */
 export function interactionStatusLabel(
-  interaction: Pick<Interaction, 'status' | 'isOverdue'>,
+  interaction: Pick<Interaction, 'status' | 'isOverdue' | 'isInProgress'>,
 ): string {
   return STATUS_LABELS[interactionStatusKey(interaction)];
 }

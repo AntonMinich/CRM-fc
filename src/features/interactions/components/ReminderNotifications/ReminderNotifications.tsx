@@ -8,6 +8,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
+import { Toast } from '../../../../components/Toast/Toast';
+import { TaskModal } from '../../../tasks/components/TaskModal/TaskModal';
 import { dismissReminder, fetchReminders, markReminderShown } from '../../api/interactionsApi';
 import { REMINDER_POLL_MS } from '../../config/interactionFields';
 import { refreshInteractionsOverdue } from '../../store/interactionsBadge';
@@ -26,6 +28,10 @@ export function ReminderNotifications() {
   const [items, setItems] = useState<Interaction[]>([]);
   /** Идентификаторы, о которых уже сообщили: повторно не показываем. */
   const shownRef = useRef<Set<string>>(new Set());
+  /** Взаимодействие, для которого открыто окно «Создать задачу». */
+  const [taskFor, setTaskFor] = useState<Interaction | null>(null);
+  /** Краткое подтверждение после создания задачи. */
+  const [toast, setToast] = useState<{ message: string; version: number } | null>(null);
 
   const poll = useCallback(async (signal?: AbortSignal) => {
     try {
@@ -84,53 +90,75 @@ export function ReminderNotifications() {
     navigate(`/crm/${section}?${params.toString()}`);
   };
 
-  if (items.length === 0) return null;
-
   return (
-    <div className="reminders" role="status" aria-live="polite">
-      {items.map((item) => (
-        <div className="reminders__item" key={item.id}>
-          <span className="reminders__icon" aria-hidden="true">
-            !
-          </span>
-          <span className="reminders__text">
-            <button
-              type="button"
-              className="reminders__link"
-              onClick={() => openInteraction(item)}
-            >
-              {ownerTitle(item)}: {item.title}
-            </button>
-            <span className="reminders__time">
-              {item.isOverdue ? 'Просрочено: ' : 'План: '}
-              {formatDateTime(item.plannedAt)}
-            </span>
-          </span>
-          <span className="reminders__actions">
-            <button
-              type="button"
-              className="client-button client-button--secondary reminders__button"
-              onClick={() => openInteraction(item, 'result')}
-            >
-              Внести результат
-            </button>
-            <button
-              type="button"
-              className="client-button client-button--secondary reminders__button"
-              onClick={() => openInteraction(item, 'reschedule')}
-            >
-              Перенести
-            </button>
-            <button
-              type="button"
-              className="client-button client-button--secondary reminders__button"
-              onClick={() => handleDismiss(item.id)}
-            >
-              Закрыть
-            </button>
-          </span>
+    <>
+      {items.length > 0 ? (
+        <div className="reminders" role="status" aria-live="polite">
+          {items.map((item) => (
+            <div className="reminders__item" key={item.id}>
+              <span className="reminders__icon" aria-hidden="true">
+                !
+              </span>
+              <span className="reminders__text">
+                <button
+                  type="button"
+                  className="reminders__link"
+                  onClick={() => openInteraction(item)}
+                >
+                  {ownerTitle(item)}: {item.title}
+                </button>
+                {/* Встреча началась: текст не называет её просроченной. */}
+                <span className="reminders__time">
+                  Началось: {formatDateTime(item.plannedAt)}
+                </span>
+              </span>
+              <span className="reminders__actions">
+                <button
+                  type="button"
+                  className="client-button client-button--secondary reminders__button"
+                  onClick={() => openInteraction(item, 'result')}
+                >
+                  Внести результат
+                </button>
+                <button
+                  type="button"
+                  className="client-button client-button--secondary reminders__button"
+                  onClick={() => setTaskFor(item)}
+                >
+                  Создать задачу
+                </button>
+                <button
+                  type="button"
+                  className="client-button client-button--secondary reminders__button"
+                  onClick={() => handleDismiss(item.id)}
+                >
+                  Закрыть
+                </button>
+              </span>
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
+      ) : null}
+
+      {/* Задача создаётся по взаимодействию: контрагент и ответственный — из него. */}
+      <TaskModal
+        open={taskFor !== null}
+        interaction={taskFor}
+        onClose={() => setTaskFor(null)}
+        onCreated={() => {
+          if (taskFor) close(taskFor.id);
+          setTaskFor(null);
+          setToast({ message: 'Задача создана', version: Date.now() });
+        }}
+      />
+
+      <Toast
+        visible={toast !== null}
+        version={toast?.version ?? 0}
+        onClose={() => setToast(null)}
+      >
+        {toast?.message ?? ''}
+      </Toast>
+    </>
   );
 }

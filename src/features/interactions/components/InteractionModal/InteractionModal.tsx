@@ -1,6 +1,6 @@
 /**
- * Окно взаимодействия: планирование, перенос, внесение и правка результата,
- * просмотр с историей переносов. Оформление — как в остальных окнах карточек.
+ * Окно взаимодействия: планирование, внесение и правка результата, просмотр
+ * с историей переносов. Оформление — как в остальных окнах карточек.
  */
 
 import type { FormEvent, ReactNode, RefObject, SyntheticEvent } from 'react';
@@ -13,7 +13,6 @@ import {
   InteractionApiError,
   cancelInteraction,
   createInteraction,
-  rescheduleInteraction,
   submitInteractionResult,
   updateInteraction,
 } from '../../api/interactionsApi';
@@ -42,17 +41,14 @@ import {
   EMPTY_INTERACTION_FORM,
   INTERACTION_FIELD_MESSAGES,
   PLAN_FIELD_ORDER,
-  RESCHEDULE_FIELD_ORDER,
   RESULT_FIELD_ORDER,
   interactionFormValues,
   mapInteractionServerErrors,
   toCreateResultPayload,
   toPlanPayload,
   toPlanUpdatePayload,
-  toReschedulePayload,
   toResultPayload,
   validatePlanForm,
-  validateRescheduleForm,
   validateResultForm,
 } from '../../utils/validateInteractionForm';
 import '../../../clients/components/ClientForm/ClientForm.css';
@@ -63,7 +59,6 @@ const CREATE_CONTACT_VALUE = '__create_contact__';
 
 /** Заголовок окна для каждого режима. */
 function modalTitle(mode: InteractionModalMode, isCreate: boolean, status?: string): string {
-  if (mode === 'reschedule') return 'Перенос взаимодействия';
   if (mode === 'view') return 'Взаимодействие';
   if (mode === 'result') {
     if (isCreate) return 'Фиксация результата';
@@ -108,7 +103,6 @@ interface FieldRefs {
   occurredAt: RefObject<HTMLInputElement | null>;
   resultText: RefObject<HTMLTextAreaElement | null>;
   nextStep: RefObject<HTMLTextAreaElement | null>;
-  reason: RefObject<HTMLTextAreaElement | null>;
   cancelReason: RefObject<HTMLTextAreaElement | null>;
 }
 
@@ -153,7 +147,6 @@ export function InteractionModal({
     occurredAt: useRef<HTMLInputElement | null>(null),
     resultText: useRef<HTMLTextAreaElement | null>(null),
     nextStep: useRef<HTMLTextAreaElement | null>(null),
-    reason: useRef<HTMLTextAreaElement | null>(null),
     cancelReason: useRef<HTMLTextAreaElement | null>(null),
   };
 
@@ -161,7 +154,7 @@ export function InteractionModal({
   useEffect(() => {
     dialogRef.current?.showModal();
     const timer = window.setTimeout(() => {
-      if (mode === 'plan' || mode === 'reschedule') refs.plannedAt.current?.focus();
+      if (mode === 'plan') refs.plannedAt.current?.focus();
       else if (mode === 'result') refs.resultText.current?.focus();
     }, 0);
     return () => window.clearTimeout(timer);
@@ -233,17 +226,11 @@ export function InteractionModal({
 
 
   /** Порядок полей текущего режима. */
-  const fieldOrder =
-    mode === 'plan'
-      ? PLAN_FIELD_ORDER
-      : mode === 'reschedule'
-        ? RESCHEDULE_FIELD_ORDER
-        : RESULT_FIELD_ORDER;
+  const fieldOrder = mode === 'plan' ? PLAN_FIELD_ORDER : RESULT_FIELD_ORDER;
 
   /** Проверка формы выбранного режима. */
   const validate = (): InteractionFormErrors => {
     if (mode === 'plan') return validatePlanForm(values);
-    if (mode === 'reschedule') return validateRescheduleForm(values);
     if (mode === 'result') {
       const resultErrors = validateResultForm(values);
       // У поставщика при внесении результата контактное лицо обязательно.
@@ -294,13 +281,6 @@ export function InteractionModal({
       if (mode === 'plan') {
         if (isCreate) await createInteraction(toPlanPayload(owner, ownerId, values));
         else await updateInteraction(interaction.id, toPlanUpdatePayload(values));
-        setSubmitting(false);
-        onSaved();
-        return;
-      }
-
-      if (mode === 'reschedule' && interaction) {
-        await rescheduleInteraction(interaction.id, toReschedulePayload(values));
         setSubmitting(false);
         onSaved();
         return;
@@ -401,8 +381,7 @@ export function InteractionModal({
                 htmlFor="interaction-planned-at"
               >
                 <span className="client-field__label">
-                  {mode === 'reschedule' ? 'Новая дата и время' : 'Дата и время'}{' '}
-                  <span className="client-field__required">*</span>
+                  Дата и время <span className="client-field__required">*</span>
                 </span>
                 <input
                   id="interaction-planned-at"
@@ -543,7 +522,7 @@ export function InteractionModal({
             ) : null}
 
             {owner === 'supplier' ? (
-              <label className="client-field interaction-field--span-6" htmlFor="interaction-contact">
+              <label className="client-field" htmlFor="interaction-contact">
                 <span className="client-field__label">
                   Контактное лицо
                   {mode === 'result' ? <span className="client-field__required"> *</span> : null}
@@ -578,14 +557,9 @@ export function InteractionModal({
               </label>
             ) : null}
 
-            {mode === 'plan' || mode === 'reschedule' ? (
-              <fieldset
-                className={
-                  owner === 'supplier'
-                    ? 'interaction-reminder interaction-field--span-6'
-                    : 'interaction-reminder'
-                }
-              >
+            {mode === 'plan' ? (
+              /* «Напоминание» — отдельная строка сразу под «Контактным лицом». */
+              <fieldset className="interaction-reminder">
                 <legend className="client-address__title">Напоминание</legend>
                 <label className="client-field" htmlFor="interaction-reminder-option">
                   <span className="client-field__label">Когда напомнить</span>
@@ -693,24 +667,6 @@ export function InteractionModal({
               </>
             ) : null}
 
-            {mode === 'reschedule' ? (
-              <label className="client-field" htmlFor="interaction-reason">
-                <span className="client-field__label">Причина переноса</span>
-                <textarea
-                  id="interaction-reason"
-                  className="client-field__input client-field__textarea"
-                  ref={refs.reason}
-                  value={values.reason}
-                  onChange={(event) => updateField('reason', event.target.value)}
-                  rows={3}
-                  maxLength={INTERACTION_LIMITS.reason}
-                  disabled={submitting}
-                />
-                <span className="client-field__counter">
-                  {values.reason.length} / {INTERACTION_LIMITS.reason}
-                </span>
-              </label>
-            ) : null}
           </div>
 
           {formError ? (
@@ -736,11 +692,9 @@ export function InteractionModal({
             >
               {submitting
                 ? 'Сохранение…'
-                : mode === 'reschedule'
-                  ? 'Перенести'
-                  : mode === 'result'
-                    ? 'Сохранить результат'
-                    : 'Сохранить'}
+                : mode === 'result'
+                  ? 'Сохранить результат'
+                  : 'Сохранить'}
             </button>
           </div>
         </form>
@@ -903,13 +857,6 @@ export function InteractionModal({
                     onClick={() => onModeChange('plan')}
                   >
                     Изменить план
-                  </button>
-                  <button
-                    type="button"
-                    className="client-button client-button--secondary"
-                    onClick={() => onModeChange('reschedule')}
-                  >
-                    Перенести
                   </button>
                   <button
                     type="button"

@@ -1,0 +1,29 @@
+/* Карточка задачи: значения только для чтения и ссылки на связанные объекты. */
+
+.task-card-value {
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.task-card-value--muted {
+  color: var(--text-muted);
+}
+
+.task-card-link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--create-button-bg);
+  font: inherit;
+  font-size: 14px;
+  text-align: left;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.task-card-link:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

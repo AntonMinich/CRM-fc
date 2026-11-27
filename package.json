@@ -16,7 +16,10 @@
     "screenshots": "npm run build && node tools/screenshots.mjs",
     "check:dev": "node tools/live-check.mjs",
     "check:money": "node tools/check-money.mjs",
-    "check:api": "node tools/check-api.mjs"
+    "check:api": "node tools/check-api.mjs",
+    "check:interactions-board": "node tools/check-interactions-board.mjs",
+    "check:notifications": "node tools/check-notifications.mjs",
+    "check:tasks": "node tools/check-tasks.mjs"
   },
   "dependencies": {
     "react": "^19.3.1",

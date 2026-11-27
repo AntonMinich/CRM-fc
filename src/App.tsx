@@ -9,6 +9,7 @@ import { DealsTab } from './pages/crm/DealsTab';
 import { InteractionsTab } from './pages/crm/InteractionsTab';
 import { SuppliersTab } from './pages/crm/SuppliersTab';
 import ServiceDeskPage from './pages/ServiceDeskPage';
+import TasksPage from './pages/TasksPage';
 
 /**
  * Маршруты приложения.
@@ -16,7 +17,10 @@ import ServiceDeskPage from './pages/ServiceDeskPage';
  * /crm — оболочка раздела CRM с верхним меню:
  *   /crm/deals     — сделки (канбан),
  *   /crm/clients   — клиенты (список, поиск, создание),
- *   /crm/suppliers — поставщики (пусто).
+ *   /crm/suppliers — поставщики (пусто),
+ *
+ * /service-desk — пустая рабочая область,
+ * /tasks        — задачи: список и канбан вместе с взаимодействиями.
  */
 export default function App() {
   return (
@@ -32,6 +36,7 @@ export default function App() {
           <Route path="*" element={<Navigate to={DEFAULT_CRM_TAB_PATH} replace />} />
         </Route>
         <Route path="/service-desk" element={<ServiceDeskPage />} />
+        <Route path="/tasks" element={<TasksPage />} />
         <Route path="*" element={<Navigate to={DEFAULT_SECTION_PATH} replace />} />
       </Routes>
 

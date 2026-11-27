@@ -28,6 +28,16 @@
  *   POST  /api/interactions/{id}/cancel
  *   GET   /api/interactions/reminders
  *   POST  /api/interactions/{id}/reminder
+ *   GET   /api/notifications?filter=all|unread&limit=20&offset=0
+ *   GET   /api/notifications/unread-count
+ *   POST  /api/notifications/{id}/read
+ *   POST  /api/notifications/read-all
+ *   GET   /api/tasks?search=&status=&responsible=&mine=&page=&pageSize=
+ *   POST  /api/tasks
+ *   GET   /api/tasks/{id}
+ *   PATCH /api/tasks/{id}
+ *   POST  /api/tasks/{id}/close
+ *   GET   /api/agenda?view=list|kanban&column=&offset=&limit=&dateFrom=&dateTo=
  *
  * Значения `id`, `created_at`, `updated_at` задаёт сервер; клиент их не передаёт.
  * Внутренние ошибки базы наружу не выводятся.
@@ -45,7 +55,7 @@ import {
   listUsers,
   updateClient,
 } from './repository.mjs';
-import { filterClients, paginate, parseQuery } from './search.mjs';
+import { clientFullName, filterClients, paginate, parseQuery } from './search.mjs';
 import {
   createSupplier,
   findCreationRequest as findSupplierCreationRequest,
@@ -87,6 +97,27 @@ import {
   updateSupplierContact,
 } from './supplierContactsRepository.mjs';
 import { validateContactPayload } from './supplierContactsValidation.mjs';
+import {
+  countUnreadNotifications,
+  createNotification,
+  deleteNotificationsBySourcePrefix,
+  listNotifications,
+  markAllNotificationsRead,
+  markNotificationRead,
+} from './notificationsRepository.mjs';
+import {
+  AGENDA_PAGE_SIZE,
+  TASK_SOON_MS,
+  closeTask,
+  createTask,
+  dueTaskNotifications,
+  getTaskById,
+  listAgenda,
+  listAgendaColumn,
+  listAgendaKanban,
+  listTasks,
+  updateTask,
+} from './tasksRepository.mjs';
 import { validateClientPayload } from './validation.mjs';
 
 /** Ограничение размера тела запроса. */
@@ -113,6 +144,13 @@ const INTERACTION_ITEM_PATTERN = /^\/api\/interactions\/([^/]+)$/;
 
 /** Действие над взаимодействием: перенос, результат, отмена, напоминание. */
 const INTERACTION_ACTION_PATTERN = /^\/api\/interactions\/([^/]+)\/(reschedule|result|cancel|reminder)$/;
+
+/** Отметка уведомления прочитанным: /api/notifications/{id}/read. */
+const NOTIFICATION_READ_PATTERN = /^\/api\/notifications\/([^/]+)\/read$/;
+
+/** Задачи: /api/tasks/{id} и /api/tasks/{id}/close. */
+const TASK_ITEM_PATTERN = /^\/api\/tasks\/([^/]+)$/;
+const TASK_CLOSE_PATTERN = /^\/api\/tasks\/([^/]+)\/close$/;
 
 
 /** Ошибка с HTTP-статусом, ошибками полей и дополнительными данными ответа. */
@@ -236,6 +274,7 @@ async function handleCreateClient(req, res) {
   if (result.status === 'duplicate') {
     throw duplicatePhoneError(result.duplicate);
   }
+  notifyClientEvent(result.client, 'Клиент создан');
   sendJson(res, 201, result.client);
 }
 
@@ -296,6 +335,7 @@ async function handleUpdateClient(req, res, id) {
     throw duplicatePhoneError(result.duplicate);
   }
 
+  notifyClientEvent(result.client, 'Изменения сохранены');
   sendJson(res, 200, result.client);
 }
 
@@ -354,6 +394,7 @@ async function handleCreateSupplier(req, res) {
   if (result.status === 'duplicate_unp') {
     throw duplicateSupplierUnpError(result.duplicate);
   }
+  notifySupplierEvent(result.supplier, 'Поставщик создан');
   sendSupplier(res, 201, result);
 }
 
@@ -403,6 +444,7 @@ async function handleUpdateSupplier(req, res, id) {
     throw duplicateSupplierUnpError(result.duplicate);
   }
 
+  notifySupplierEvent(result.supplier, 'Изменения сохранены');
   sendSupplier(res, 200, result);
 }
 
@@ -573,6 +615,7 @@ function sendInteractionResult(res, result, statusCode = 200) {
       supplier_contact_id: 'Выберите контактное лицо',
     });
   }
+  notifyInteractionReminder(result.interaction);
   sendJson(res, statusCode, result.interaction);
 }
 
@@ -701,9 +744,13 @@ function handleListAllInteractions(url, res) {
   );
 }
 
-/** Наступившие напоминания текущего пользователя. */
+/** Наступившие напоминания текущего пользователя и сроки задач. */
 function handleListReminders(res) {
   const userId = getCurrentUserId();
+  // Планировщик напоминаний: вместе с взаимодействиями проверяются сроки задач.
+  if (userId) {
+    for (const { task, kind } of dueTaskNotifications(userId)) notifyTaskDue(task, kind);
+  }
   sendJson(res, 200, { items: userId ? listDueReminders(userId) : [] });
 }
 
@@ -715,6 +762,301 @@ async function handleInteractionReminder(req, res, id) {
 }
 
 /** Обрабатывает запрос к API. `true`, если запрос относится к API. */
+/**
+ * Уведомление колокольчика: то же сообщение, что и всплывающее, но сохраняется
+ * в хранилище, чтобы попасть в панель колокольчика.
+ */
+function notifyUser({ userId, type, title, body, entityType, entityId, link, sourceKey = null }) {
+  if (!userId) return;
+  createNotification({ userId, type, title, body, entityType, entityId, link, sourceKey });
+}
+
+/** Ссылка на карточку контрагента: с вкладкой и записью взаимодействия. */
+function counterpartyLink(section, id, tab = null, interactionId = null) {
+  const params = new URLSearchParams({ open: id });
+  if (tab) params.set('tab', tab);
+  if (interactionId) params.set('interaction', interactionId);
+  return `/crm/${section}?${params.toString()}`;
+}
+
+/** Создание и сохранение клиента попадают в колокольчик. */
+function notifyClientEvent(client, title) {
+  if (!client) return;
+  notifyUser({
+    userId: getCurrentUserId(),
+    type: 'client',
+    title,
+    body: clientFullName(client),
+    entityType: 'client',
+    entityId: client.id,
+    link: counterpartyLink('clients', client.id),
+  });
+}
+
+/** Создание и сохранение поставщика попадают в колокольчик. */
+function notifySupplierEvent(supplier, title) {
+  if (!supplier) return;
+  notifyUser({
+    userId: getCurrentUserId(),
+    type: 'supplier',
+    title,
+    body: supplier.name ?? null,
+    entityType: 'supplier',
+    entityId: supplier.id,
+    link: counterpartyLink('suppliers', supplier.id),
+  });
+}
+
+/** Напоминание о взаимодействии: одна запись на время напоминания. */
+function notifyInteractionReminder(interaction) {
+  if (!interaction || !interaction.remind_at || interaction.status !== 'planned') return;
+  const userId = interaction.responsible_user_id ?? getCurrentUserId();
+  if (!userId) return;
+  const section = interaction.client_id ? 'clients' : 'suppliers';
+  const ownerId = interaction.client_id ?? interaction.supplier_id;
+  const ownerName = interaction.client_name ?? interaction.supplier_name ?? '';
+  notifyUser({
+    userId,
+    type: 'reminder',
+    title: interaction.title,
+    body: ownerName ? `Напоминание: ${ownerName}` : 'Напоминание о взаимодействии',
+    entityType: 'interaction',
+    entityId: interaction.id,
+    link: counterpartyLink(section, ownerId, 'interactions', interaction.id),
+    sourceKey: `interaction-reminder:${interaction.id}:${interaction.remind_at}`,
+  });
+}
+
+/** Список уведомлений текущего пользователя: «все» или «непрочитанные». */
+function handleListNotifications(url, res) {
+  const params = url.searchParams;
+  sendJson(
+    res,
+    200,
+    listNotifications({
+      filter: params.get('filter') === 'unread' ? 'unread' : 'all',
+      limit: Number.parseInt(params.get('limit') ?? '20', 10),
+      offset: Number.parseInt(params.get('offset') ?? '0', 10),
+    }),
+  );
+}
+
+/** Счётчик непрочитанных уведомлений. */
+function handleNotificationsUnread(res) {
+  sendJson(res, 200, { unread: countUnreadNotifications() });
+}
+
+/** Отметка одного уведомления прочитанным (идемпотентно). */
+function handleNotificationRead(res, id) {
+  const result = markNotificationRead(id);
+  if (result.status === 'not_found') throw new HttpError(404, 'Уведомление не найдено');
+  sendJson(res, 200, result.notification);
+}
+
+/** Отметка всех уведомлений прочитанными. */
+function handleNotificationsReadAll(res) {
+  sendJson(res, 200, markAllNotificationsRead());
+}
+
+/** Срок задачи для текста уведомления: дд.мм.гггг чч:мм. */
+function formatTaskDue(iso) {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+  const pad = (part) => String(part).padStart(2, '0');
+  return `${pad(date.getDate())}.${pad(date.getMonth() + 1)}.${date.getFullYear()} ${pad(
+    date.getHours(),
+  )}:${pad(date.getMinutes())}`;
+}
+
+/**
+ * Уведомление по сроку задачи: за час до срока и при просрочке.
+ * Ключ источника гарантирует одну запись на задачу для каждого вида.
+ */
+function notifyTaskDue(task, kind) {
+  const overdue = kind === 'overdue';
+  createNotification({
+    userId: task.responsible_user_id,
+    type: 'task',
+    title: overdue ? 'Задача просрочена' : 'Срок задачи скоро истекает',
+    body: overdue ? task.title : `${task.title} · срок ${formatTaskDue(task.due_at)}`,
+    // Колокольчик открывает карточку задачи поверх текущей страницы.
+    entityType: 'task',
+    entityId: task.id,
+    link: '/tasks',
+    sourceKey: `${overdue ? 'task-overdue' : 'task-soon'}:${task.id}`,
+  });
+}
+
+/** Уведомления при создании задачи: если срок уже близко, пишем сразу. */
+function notifyTaskOnCreate(task) {
+  if (!task || task.status === 'done') return;
+  const due = Date.parse(task.due_at);
+  if (!Number.isFinite(due)) return;
+  const left = due - Date.now();
+  if (left <= 0) notifyTaskDue(task, 'overdue');
+  else if (left <= TASK_SOON_MS) notifyTaskDue(task, 'soon');
+}
+
+/** Пересчёт уведомлений задачи после смены срока: старые удаляются. */
+function resetTaskNotifications(taskId) {
+  deleteNotificationsBySourcePrefix(`task-soon:${taskId}`);
+  deleteNotificationsBySourcePrefix(`task-overdue:${taskId}`);
+}
+
+/** Фильтры раздела «Задачи» из строки запроса. */
+function readTaskFilters(params) {
+  const size = Number.parseInt(params.get('pageSize') ?? '', 10);
+  const limit = Number.parseInt(params.get('limit') ?? '', 10);
+  return {
+    search: params.get('search') ?? '',
+    status: params.get('status') ?? 'all',
+    responsible: params.get('responsible') ?? 'all',
+    mine: params.get('mine') === 'true',
+    dateFrom: params.get('dateFrom') ?? '',
+    dateTo: params.get('dateTo') ?? '',
+    page: Number.parseInt(params.get('page') ?? '1', 10),
+    pageSize: Number.isInteger(size) && size > 0 ? size : AGENDA_PAGE_SIZE,
+    offset: Number.parseInt(params.get('offset') ?? '0', 10),
+    limit: Number.isInteger(limit) && limit > 0 ? limit : AGENDA_PAGE_SIZE,
+  };
+}
+
+/** Список задач: поиск, фильтры и пагинация. */
+function handleListTasks(url, res) {
+  const filters = readTaskFilters(url.searchParams);
+  sendJson(res, 200, paginate(listTasks(filters), filters.page, filters.pageSize));
+}
+
+/** Список раздела: задачи и плановые взаимодействия вместе. */
+function handleListAgenda(url, res) {
+  const params = url.searchParams;
+  const filters = readTaskFilters(params);
+  const column = params.get('column');
+  if (column) {
+    // Канбан: порция карточек одной колонки с общим числом элементов.
+    sendJson(res, 200, listAgendaColumn(filters, { column, offset: filters.offset, limit: filters.limit }));
+    return;
+  }
+  sendJson(res, 200, params.get('view') === 'kanban' ? listAgendaKanban(filters) : listAgenda(filters));
+}
+
+/** Карточка задачи. */
+function handleGetTask(id, res) {
+  const found = getTaskById(id);
+  if (!found) throw new HttpError(404, 'Задача не найдена');
+  sendJson(res, 200, found.task);
+}
+
+/** Проверка полей задачи: название и срок обязательны, срок не в прошлом. */
+function validateTaskPayload(body) {
+  const asText = (value) =>
+    typeof value === 'string' ? value : value === null || value === undefined ? '' : String(value);
+  const fieldErrors = {};
+
+  const title = asText(body.title).trim();
+  if (title === '') fieldErrors.title = 'Введите название';
+  else if (title.length > 200) fieldErrors.title = 'Не более 200 символов';
+
+  const dueRaw = asText(body.due_at).trim();
+  const dueTime = dueRaw === '' ? Number.NaN : Date.parse(dueRaw);
+  if (!Number.isFinite(dueTime)) fieldErrors.due_at = 'Укажите срок выполнения';
+  else if (dueTime < Date.now() - 60_000) fieldErrors.due_at = 'Срок не может быть в прошлом';
+
+  const description = asText(body.description).trim();
+  if (description.length > 1000) fieldErrors.description = 'Не более 1000 символов';
+
+  if (Object.keys(fieldErrors).length > 0) return { ok: false, fieldErrors };
+
+  const responsibleUserId = asText(body.responsible_user_id).trim() || getCurrentUserId();
+  if (!isResponsibleSelectable(responsibleUserId)) {
+    return { ok: false, fieldErrors: { responsible_user_id: 'Выберите ответственного' } };
+  }
+
+  return {
+    ok: true,
+    data: {
+      title,
+      description: description === '' ? null : description,
+      due_at: new Date(dueTime).toISOString(),
+      responsible_user_id: responsibleUserId,
+      interaction_id: asText(body.interaction_id).trim() || null,
+      client_id: asText(body.client_id).trim() || null,
+      supplier_id: asText(body.supplier_id).trim() || null,
+    },
+  };
+}
+
+/** Создание задачи: контрагент и ответственный берутся из взаимодействия. */
+async function handleCreateTask(req, res) {
+  const body = await readJsonBody(req);
+  const validation = validateTaskPayload(body);
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+
+  const data = { ...validation.data };
+  if (data.interaction_id) {
+    const found = getInteractionById(data.interaction_id);
+    if (!found) {
+      throw new HttpError(422, 'Проверьте заполнение полей', {
+        interaction_id: 'Взаимодействие не найдено',
+      });
+    }
+    data.client_id = found.interaction.client_id ?? null;
+    data.supplier_id = found.interaction.supplier_id ?? null;
+    if (!body.responsible_user_id) {
+      data.responsible_user_id = found.interaction.responsible_user_id;
+    }
+  }
+
+  const result = createTask(data, getCurrentUserId());
+  notifyTaskOnCreate(result.task);
+  sendJson(res, 201, result.task);
+}
+
+/** Закрытие задачи: повторный вызов ничего не меняет. */
+function handleCloseTask(res, id) {
+  const result = closeTask(id);
+  if (result.status === 'not_found') throw new HttpError(404, 'Задача не найдена');
+  sendJson(res, 200, result.task);
+}
+
+/** Правка задачи: те же проверки, что при создании; выполненную менять нельзя. */
+async function handleUpdateTask(req, res, id) {
+  const found = getTaskById(id);
+  if (!found) throw new HttpError(404, 'Задача не найдена');
+  if (found.row.status === 'done') {
+    throw new HttpError(409, 'Выполненную задачу нельзя изменить');
+  }
+
+  const body = await readJsonBody(req);
+  // Ответственный не редактируется: проверка идёт по текущему значению.
+  const validation = validateTaskPayload({
+    ...body,
+    responsible_user_id: found.task.responsible_user_id,
+  });
+  if (!validation.ok) {
+    throw new HttpError(422, 'Проверьте заполнение полей', validation.fieldErrors);
+  }
+
+  const result = updateTask(id, {
+    title: validation.data.title,
+    description: validation.data.description,
+    due_at: validation.data.due_at,
+  });
+  if (result.status === 'not_found') throw new HttpError(404, 'Задача не найдена');
+  if (result.status === 'invalid_status') {
+    throw new HttpError(409, 'Выполненную задачу нельзя изменить');
+  }
+
+  // Новый срок — уведомления «скоро истекает» и «просрочена» пересчитываются.
+  if (result.dueChanged) {
+    resetTaskNotifications(id);
+    notifyTaskOnCreate(result.task);
+  }
+  sendJson(res, 200, result.task);
+}
+
 export async function handleApiRequest(req, res, url) {
   const { pathname } = url;
   if (!pathname.startsWith('/api/')) return false;
@@ -805,6 +1147,61 @@ export async function handleApiRequest(req, res, url) {
         await handleUpdateSupplier(req, res, id);
         return true;
       }
+    }
+
+    // Задачи: список, раздел «Задачи» и карточка.
+    if (pathname === '/api/tasks' && req.method === 'GET') {
+      handleListTasks(url, res);
+      return true;
+    }
+
+    if (pathname === '/api/tasks' && req.method === 'POST') {
+      await handleCreateTask(req, res);
+      return true;
+    }
+
+    if (pathname === '/api/agenda' && req.method === 'GET') {
+      handleListAgenda(url, res);
+      return true;
+    }
+
+    const taskCloseMatch = TASK_CLOSE_PATTERN.exec(pathname);
+    if (taskCloseMatch && req.method === 'POST') {
+      handleCloseTask(res, decodeURIComponent(taskCloseMatch[1]));
+      return true;
+    }
+
+    const taskMatch = TASK_ITEM_PATTERN.exec(pathname);
+    if (taskMatch && req.method === 'GET') {
+      handleGetTask(decodeURIComponent(taskMatch[1]), res);
+      return true;
+    }
+
+    if (taskMatch && req.method === 'PATCH') {
+      await handleUpdateTask(req, res, decodeURIComponent(taskMatch[1]));
+      return true;
+    }
+
+    // Уведомления колокольчика в шапке: только текущий пользователь.
+    if (pathname === '/api/notifications' && req.method === 'GET') {
+      handleListNotifications(url, res);
+      return true;
+    }
+
+    if (pathname === '/api/notifications/unread-count' && req.method === 'GET') {
+      handleNotificationsUnread(res);
+      return true;
+    }
+
+    if (pathname === '/api/notifications/read-all' && req.method === 'POST') {
+      handleNotificationsReadAll(res);
+      return true;
+    }
+
+    const notificationReadMatch = NOTIFICATION_READ_PATTERN.exec(pathname);
+    if (notificationReadMatch && req.method === 'POST') {
+      handleNotificationRead(res, decodeURIComponent(notificationReadMatch[1]));
+      return true;
     }
 
     // Напоминания регистрируются до шаблона /api/interactions/{id}.

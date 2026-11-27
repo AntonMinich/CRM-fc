@@ -24,9 +24,10 @@ export const INTERACTION_TYPES: readonly { value: InteractionType; label: string
   { value: 'other', label: 'Другое' },
 ];
 
-/** Подписи статусов и меток. */
-export const STATUS_LABELS: Record<InteractionStatus | 'overdue', string> = {
+/** Подписи статусов и меток. «Выполняется» — час после начала встречи. */
+export const STATUS_LABELS: Record<InteractionStatus | 'overdue' | 'in_progress', string> = {
   planned: 'Запланировано',
+  in_progress: 'Выполняется',
   overdue: 'Просрочено',
   done: 'Выполнено',
   cancelled: 'Отменено',
@@ -36,6 +37,7 @@ export const STATUS_LABELS: Record<InteractionStatus | 'overdue', string> = {
 export const FILTERS: readonly { value: InteractionFilter; label: string }[] = [
   { value: 'all', label: 'Все' },
   { value: 'planned', label: 'Запланировано' },
+  { value: 'in_progress', label: 'Выполняется' },
   { value: 'overdue', label: 'Просрочено' },
   { value: 'done', label: 'Выполнено' },
 ];
